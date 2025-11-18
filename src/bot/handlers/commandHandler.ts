@@ -29,7 +29,8 @@ export default function handlers(bot: Telegraf<Context>) {
       // Create guest
       await guestService.createGuest(data);
 
-      // Find user
+      // Create or find user
+      await userService.createUser(data);
       const user = await User.findOne({ user_id: data.user_id });
 
       if (!user) {
