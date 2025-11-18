@@ -1,8 +1,10 @@
 import axios from "axios";
+import crypto from "crypto";
 import { Payment, User } from "../../models";
 import logger from "../../utils/logger";
 
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY || "";
+const NOWPAYMENTS_IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "";
 const NOWPAYMENTS_API_URL = "https://api.nowpayments.io/v1";
 const IPN_CALLBACK_URL = process.env.IPN_CALLBACK_URL || "http://localhost:3000/webhooks/nowpayments";
 
@@ -184,6 +186,40 @@ class PaymentService {
     } catch (error) {
       logger.error(undefined, "Error activating subscription", error);
       throw error;
+    }
+  }
+
+  /**
+   * Verify IPN signature from NOWPayments
+   */
+  verifyIPNSignature(payload: any, receivedSignature: string): boolean {
+    try {
+      if (!NOWPAYMENTS_IPN_SECRET) {
+        logger.warn(undefined, "IPN secret not configured, skipping signature verification");
+        return true; // Allow if not configured (for development)
+      }
+
+      // Sort payload keys alphabetically and create string
+      const sortedKeys = Object.keys(payload).sort();
+      const signatureString = sortedKeys
+        .map(key => `${key}=${JSON.stringify(payload[key])}`)
+        .join('&');
+
+      // Create HMAC signature
+      const hmac = crypto.createHmac('sha512', NOWPAYMENTS_IPN_SECRET);
+      hmac.update(signatureString);
+      const calculatedSignature = hmac.digest('hex');
+
+      logger.debug(undefined, "IPN Signature verification", {
+        received: receivedSignature,
+        calculated: calculatedSignature,
+        match: calculatedSignature === receivedSignature
+      });
+
+      return calculatedSignature === receivedSignature;
+    } catch (error) {
+      logger.error(undefined, "Error verifying IPN signature", error);
+      return false;
     }
   }
 
