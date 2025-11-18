@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление пользователями - Signal Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        nav {
+            margin-top: 15px;
+        }
+
+        nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-right: 10px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        nav a:hover {
+            background: #2980b9;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        button.danger {
+            background: #e74c3c;
+        }
+
+        button.danger:hover {
+            background: #c0392b;
+        }
+
+        button.success {
+            background: #27ae60;
+        }
+
+        button.success:hover {
+            background: #229954;
+        }
+
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #34495e;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.trial {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.expired {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.banned {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>👥 Управление пользователями</h1>
+            <nav>
+                <a href="/">Главная</a>
+                <a href="/users">Пользователи</a>
+            </nav>
+        </header>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Поиск по User ID или username...">
+                <button onclick="searchUsers()">🔍 Поиск</button>
+                <button onclick="loadUsers()">🔄 Обновить</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Загрузка пользователей...</div>
+
+        <table id="usersTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Статус</th>
+                    <th>Триал</th>
+                    <th>Подписка</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="usersBody">
+            </tbody>
+        </table>
+
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let searchQuery = '';
+
+        async function loadUsers(page = 1) {
+            currentPage = page;
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('usersTable').style.display = 'none';
+
+                const url = `/api/users?page=${page}&limit=20${searchQuery ? `&search=${searchQuery}` : ''}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const tbody = document.getElementById('usersBody');
+                tbody.innerHTML = '';
+
+                data.users.forEach(user => {
+                    const row = document.createElement('tr');
+
+                    let statusBadge = '<span class="badge expired">Нет доступа</span>';
+                    if (user.is_banned) {
+                        statusBadge = '<span class="badge banned">Заблокирован</span>';
+                    } else if (user.has_access) {
+                        if (user.subscription_active) {
+                            statusBadge = '<span class="badge active">Подписка активна</span>';
+                        } else {
+                            statusBadge = '<span class="badge trial">На триале</span>';
+                        }
+                    }
+
+                    row.innerHTML = `
+                        <td>${user.user_id}</td>
+                        <td>${user.username}</td>
+                        <td>${statusBadge}</td>
+                        <td>${user.trial_expires ? new Date(user.trial_expires).toLocaleString('ru-RU') : '-'}</td>
+                        <td>${user.subscription_expires ? new Date(user.subscription_expires).toLocaleString('ru-RU') : '-'}</td>
+                        <td class="actions">
+                            <button class="${user.is_banned ? 'success' : 'danger'}" onclick="toggleBan(${user.user_id}, ${!user.is_banned})">
+                                ${user.is_banned ? '✅ Разбанить' : '🚫 Забанить'}
+                            </button>
+                            <button class="success" onclick="extendSubscription(${user.user_id})">
+                                ➕ Продлить
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                renderPagination(data.pagination);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('usersTable').style.display = 'table';
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('loading').textContent = 'Ошибка загрузки пользователей';
+            }
+        }
+
+        function renderPagination(pagination) {
+            const paginationDiv = document.getElementById('pagination');
+            paginationDiv.innerHTML = '';
+
+            if (pagination.totalPages <= 1) return;
+
+            if (pagination.page > 1) {
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = '← Назад';
+                prevBtn.onclick = () => loadUsers(pagination.page - 1);
+                paginationDiv.appendChild(prevBtn);
+            }
+
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = `Страница ${pagination.page} из ${pagination.totalPages}`;
+            pageInfo.style.padding = '10px 20px';
+            paginationDiv.appendChild(pageInfo);
+
+            if (pagination.page < pagination.totalPages) {
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Вперед →';
+                nextBtn.onclick = () => loadUsers(pagination.page + 1);
+                paginationDiv.appendChild(nextBtn);
+            }
+        }
+
+        async function toggleBan(userId, ban) {
+            if (!confirm(`Вы уверены, что хотите ${ban ? 'забанить' : 'разбанить'} пользователя?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}/ban`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_banned: ban })
+                });
+
+                if (response.ok) {
+                    alert(`Пользователь ${ban ? 'забанен' : 'разбанен'} успешно!`);
+                    loadUsers(currentPage);
+                } else {
+                    alert('Ошибка при выполнении операции');
+                }
+            } catch (error) {
+                alert('Ошибка при выполнении операции');
+            }
+        }
+
+        async function extendSubscription(userId) {
+            const days = prompt('На сколько дней продлить подписку?', '30');
+            if (!days || isNaN(days)) return;
+
+            try {
+                const response = await fetch(`/api/users/${userId}/subscription`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days: parseInt(days) })
+                });
+
+                if (response.ok) {
+                    alert(`Подписка продлена на ${days} дней!`);
+                    loadUsers(currentPage);
+                } else {
+                    alert('Ошибка при продлении подписки');
+                }
+            } catch (error) {
+                alert('Ошибка при продлении подписки');
+            }
+        }
+
+        function searchUsers() {
+            searchQuery = document.getElementById('searchInput').value;
+            loadUsers(1);
+        }
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchUsers();
+            }
+        });
+
+        loadUsers();
+    </script>
+</body>
+</html>

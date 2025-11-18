@@ -1,0 +1,222 @@
+# Jest Testing Framework Setup - Summary
+
+## Overview
+
+A comprehensive Jest testing framework has been successfully set up for the SignalBot TypeScript project with full ES modules support. The framework includes unit tests, integration tests, mock utilities, and proper TypeScript configuration.
+
+## Files Created
+
+### Configuration Files
+
+1. **d:\signalbot\signalBot\package.json** (Updated)
+   - Added Jest dependencies: `jest`, `@types/jest`, `ts-jest`, `@jest/globals`
+   - Added test scripts:
+     - `npm test` - Run all tests
+     - `npm run test:watch` - Run tests in watch mode
+     - `npm run test:coverage` - Run tests with coverage report
+
+2. **d:\signalbot\signalBot\jest.config.js** (New)
+   - Configured for TypeScript with ES modules support
+   - Set up ts-jest preset with ESM
+   - Configured module name mapping for .js extensions
+   - Set up coverage collection and thresholds (50% for all metrics)
+   - Configured test file patterns and ignore patterns
+
+### Test Infrastructure
+
+3. **d:\signalbot\signalBot\__tests__\setup.ts** (New)
+   - Global test setup file
+   - Environment variable configuration for tests
+   - Test timeout settings
+   - Helper utilities (flushPromises, delay)
+   - Global cleanup functions
+
+### Mock Utilities
+
+4. **d:\signalbot\signalBot\__tests__\mocks\telegram.mock.ts** (New)
+   - Comprehensive Telegraf/Telegram bot mocking utilities
+   - `createMockContext()` - Create basic mock context
+   - `createMockCallbackQueryContext()` - Create callback query context
+   - `createMockCommandContext()` - Create command message context
+   - `createMockBot()` - Create mock bot instance
+   - `createMockKeyboard()` - Create mock keyboards
+   - Helper functions for assertions and cleanup
+
+5. **d:\signalbot\signalBot\__tests__\mocks\mongoose.mock.ts** (New)
+   - MongoDB/Mongoose mocking utilities
+   - `createMockModel()` - Create generic mock Mongoose model
+   - `createMockDocument()` - Create mock Mongoose document
+   - `createMockUserModel()` - Create User model with sample data
+   - `createMockAdminModel()` - Create Admin model mock
+   - `createMockConfigModel()` - Create Config model mock
+   - `createMockMongooseConnection()` - Mock database connection
+   - `createMockLogger()` - Mock logger to reduce test noise
+   - Helper functions for resetting mocks
+
+### Unit Tests
+
+6. **d:\signalbot\signalBot\__tests__\unit\services\user.service.test.ts** (New)
+   - Tests for UserService class
+   - Test coverage:
+     - Creating new users
+     - Updating existing users
+     - Deleting users
+     - Updating user configurations
+     - Querying users without specific symbols
+     - Error handling scenarios
+   - Uses proper mocking of dependencies
+
+7. **d:\signalbot\signalBot\__tests__\unit\utils\validateData.test.ts** (New)
+   - Tests for validation utility functions
+   - Test coverage:
+     - `isValidOIPeriod()` - Validates periods between 1-30
+     - `isValidOIPercenteges()` - Validates percentages between 0.1-100
+     - Edge cases (empty strings, non-numeric values, boundaries)
+     - Multiple test scenarios for common inputs
+
+### Integration Tests
+
+8. **d:\signalbot\signalBot\__tests__\integration\handlers\commandHandler.test.ts** (New)
+   - Integration tests for Telegram bot command handlers
+   - Test coverage:
+     - `/start` command - User greeting and guest creation
+     - `/addUser` command - Admin adding users
+     - `/deleteUser` command - Admin deleting users
+     - `/addAdmin` command - Super admin managing admins
+     - Command argument parsing and validation
+     - Permission checks (admin vs regular user)
+     - Input validation (numeric IDs, etc.)
+
+### Documentation
+
+9. **d:\signalbot\signalBot\__tests__\README.md** (New)
+   - Complete testing documentation
+   - Directory structure explanation
+   - Instructions for running tests
+   - Description of all test files
+   - Examples for writing new tests
+   - Best practices and troubleshooting guide
+
+## Directory Structure
+
+```
+signalBot/
+├── package.json                                    (Updated with Jest deps)
+├── jest.config.js                                  (New Jest configuration)
+└── __tests__/
+    ├── README.md                                   (Testing documentation)
+    ├── setup.ts                                    (Global test setup)
+    ├── mocks/
+    │   ├── telegram.mock.ts                       (Telegraf mocks)
+    │   └── mongoose.mock.ts                       (Mongoose mocks)
+    ├── unit/
+    │   ├── services/
+    │   │   └── user.service.test.ts              (UserService tests)
+    │   └── utils/
+    │       └── validateData.test.ts              (Validation tests)
+    └── integration/
+        └── handlers/
+            └── commandHandler.test.ts            (Command handler tests)
+```
+
+## Key Features
+
+### ES Modules Support
+- Configured Jest to work with TypeScript ES modules
+- All imports use `.js` extensions as required by ES modules
+- Proper module name mapping in Jest config
+- Uses `node --experimental-vm-modules` for running tests
+
+### TypeScript Integration
+- Full TypeScript support with ts-jest
+- Type-safe test code using `@jest/globals`
+- Proper type definitions for all mocks
+- TypeScript configuration optimized for testing
+
+### Comprehensive Mocking
+- **Telegram/Telegraf**: Complete mock utilities for bot contexts, commands, callbacks
+- **Mongoose/MongoDB**: Mock models, documents, queries, and connections
+- **Logger**: Mock logger to reduce test output noise
+- Reusable and extensible mock factories
+
+### Test Coverage
+- Unit tests for business logic (services, utilities)
+- Integration tests for user-facing features (command handlers)
+- Edge case testing and error handling
+- Coverage thresholds configured (50% minimum)
+
+## Next Steps
+
+### 1. Install Dependencies
+```bash
+cd d:\signalbot\signalBot
+npm install
+```
+
+### 2. Run Tests
+```bash
+# Run all tests
+npm test
+
+# Run in watch mode during development
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### 3. Add More Tests
+- Create tests for other services (binance.service, bybit.service, etc.)
+- Add tests for action handlers
+- Add tests for middleware functions
+- Increase test coverage gradually
+
+### 4. Configure CI/CD
+Add to your CI/CD pipeline:
+```yaml
+- name: Run tests
+  run: npm test
+
+- name: Check coverage
+  run: npm run test:coverage
+```
+
+## Best Practices Implemented
+
+1. **Isolation**: Each test is independent and can run in any order
+2. **Mocking**: External dependencies are properly mocked
+3. **Descriptive Names**: Test names clearly describe what is being tested
+4. **AAA Pattern**: Tests follow Arrange-Act-Assert pattern
+5. **Type Safety**: Full TypeScript types for better IDE support
+6. **Documentation**: Comprehensive inline comments and README
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue**: ES module errors
+**Solution**: Ensure all imports use `.js` extensions and `package.json` has `"type": "module"`
+
+**Issue**: Jest can't find modules
+**Solution**: Clear Jest cache with `npx jest --clearCache`
+
+**Issue**: Mock not working
+**Solution**: Ensure `jest.mock()` is called before imports at the top of test files
+
+## Additional Resources
+
+- Jest Documentation: https://jestjs.io/
+- ts-jest Documentation: https://kulshekhar.github.io/ts-jest/
+- Testing Best Practices: https://testingjavascript.com/
+
+## Summary
+
+The testing framework is now fully configured and ready to use. You have:
+- ✅ Jest configured with TypeScript and ES modules
+- ✅ Comprehensive mock utilities for Telegraf and Mongoose
+- ✅ Example unit tests for services and utilities
+- ✅ Example integration tests for command handlers
+- ✅ Full documentation and best practices
+- ✅ Coverage reporting configured
+
+You can now run `npm install` followed by `npm test` to execute the test suite!

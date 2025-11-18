@@ -11,7 +11,7 @@ import asyncWrapper from "../../utils/error-handler";
 import { getMainPumpText, getMainREKTText } from "../../utils/texts";
 
 import getPUMPKeyboard from "../../keyboards/PUMP.keyboard";
-import getCancelKeyboard from "../../keyboards/main.keyboard copy";
+import getCancelKeyboard from "../../keyboards/main.keyboard";
 import Config, { IConfig } from "../../models/Config";
 import { deleteMessageNext } from "../../middlewares/deleteMessages.middleware";
 import getREKTKeyboard from "../../keyboards/REKT.keyboard";
@@ -61,7 +61,7 @@ changeREKTParam.on(
     switch (ctx.session[SESSION_FIELDS.CHANGE]) {
       case REKT_ROUTES.SET_LIMIT:
         if (Number(num) < 1000) {
-          await ctx.replyWithHTML(`<b>Число должно быть >= 100</b>`);
+          await ctx.replyWithHTML(`<b>Число должно быть >= 1000</b>`);
 
           return;
         }

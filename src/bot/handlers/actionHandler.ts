@@ -34,7 +34,6 @@ export default function handler(bot: Telegraf<Context>) {
     /^(changebybit|changebinance) (\w+)$/,
 
     asyncWrapper(async (ctx: Context<Update.CallbackQueryUpdate<CallbackQuery.DataQuery>>, next: Function) => {
-      console.log(`lolol${ctx?.callbackQuery?.data}`);
       if (!ctx?.callbackQuery?.data) {
         await ctx.answerCbQuery();
         return next();

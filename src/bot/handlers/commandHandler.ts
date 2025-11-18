@@ -108,7 +108,7 @@ export default function handlers(bot: Telegraf<Context>) {
         await createOrUpdateMainAdmin(userId, false);
         await ctx.replyWithHTML(`Добавлена запись Admin c user_id: <b>${userId}</b>, isSuperAdmin: <b>false</b>`);
       } else {
-        await ctx.replyWithHTML(`Пожалуйста, используйте команду в формате: /deleteUser <user_id>`);
+        await ctx.replyWithHTML(`Пожалуйста, используйте команду в формате: /addAdmin <user_id>`);
       }
     })
   );
@@ -133,7 +133,7 @@ export default function handlers(bot: Telegraf<Context>) {
         await createOrUpdateMainAdmin(userId, true);
         await ctx.replyWithHTML(`Добавлена запись Admin c user_id: <b>${userId}</b>, isSuperAdmin: <b>${true}</b>`);
       } else {
-        await ctx.replyWithHTML(`Пожалуйста, используйте команду в формате: /deleteUser <user_id>`);
+        await ctx.replyWithHTML(`Пожалуйста, используйте команду в формате: /addSuperAdmin <user_id>`);
       }
     })
   );

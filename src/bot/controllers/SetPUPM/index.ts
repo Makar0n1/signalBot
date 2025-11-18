@@ -11,7 +11,7 @@ import asyncWrapper from "../../utils/error-handler";
 import { getMainPumpText } from "../../utils/texts";
 
 import getPUMPKeyboard from "../../keyboards/PUMP.keyboard";
-import getCancelKeyboard from "../../keyboards/main.keyboard copy";
+import getCancelKeyboard from "../../keyboards/main.keyboard";
 import Config, { IConfig } from "../../models/Config";
 import  {User, IUser } from "../../models";
 import { deleteMessageNext } from "../../middlewares/deleteMessages.middleware";
@@ -43,9 +43,9 @@ sendMessage.hears(PUMP_ROUTES.DOWN_PERIOD, async (ctx: WizardContext) => {
 });
 
 sendMessage.hears(PUMP_ROUTES.UP_PERCENTEGES, async (ctx: WizardContext) => {
- const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
+  const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
   const { cancelKeyboard } = getCancelKeyboard();
-  await ctx.replyWithHTML(
+  const msg = await ctx.replyWithHTML(
     `📈 <b>Текущий % изменения цены для большого пампа - ${user.config.pump_growth_percentage}%</b>\n\n Введи новый % изменения цены: от 0.1% до 100%`,
     cancelKeyboard
   );

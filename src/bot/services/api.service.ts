@@ -3,7 +3,6 @@ import { CategoryV5, WebsocketClient, WSClientConfigurableOptions } from "bybit-
 import { WSCONFIG, WSKEY } from "../utils/CONST";
 import loggerWithCtx from "../utils/logger";
 import { ByBitService } from "./../index";
-import { CategoryV5 } from "bybit-api";
 import executeIfNotRunning from "../utils/executeIfNotRunning";
 
 export interface IByBitApiResponse {

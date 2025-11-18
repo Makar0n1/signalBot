@@ -16,6 +16,15 @@ export interface IUser extends Document {
   bybit_oi: IByBit_OI[];
   bybit_rekt: IByBit_REKT[];
   config: IConfig;
+
+  // Subscription fields
+  trial_started_at?: Date;
+  trial_expires_at?: Date;
+  subscription_active: boolean;
+  subscription_expires_at?: Date;
+  is_banned: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export const UserSchema = new mongoose.Schema({
@@ -26,6 +35,15 @@ export const UserSchema = new mongoose.Schema({
   bybit_oi: [{ type: mongoose.Schema.Types.ObjectId, ref: "ByBit_OI" }],
   bybit_rekt: [{ type: mongoose.Schema.Types.ObjectId, ref: "ByBit_REKT" }],
   config: { type: mongoose.Schema.Types.ObjectId, ref: "Config" },
+
+  // Subscription fields
+  trial_started_at: { type: Date },
+  trial_expires_at: { type: Date },
+  subscription_active: { type: Boolean, default: false },
+  subscription_expires_at: { type: Date },
+  is_banned: { type: Boolean, default: false },
+}, {
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
 UserSchema.post("save", async function (this: IUser) {

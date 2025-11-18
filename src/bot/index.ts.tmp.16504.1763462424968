@@ -7,9 +7,7 @@ import mongoose from "mongoose";
 import messageHandler from "./handlers/messageHandler.js";
 import commandHandler from "./handlers/commandHandler.js";
 import actionHandler from "./handlers/actionHandler.js";
-import subscriptionHandler from "./handlers/subscriptionHandler.js";
 import logger from "./utils/logger.js";
-import { initializeTrial, checkSubscription } from "./middlewares/subscription.middleware.js";
 
 import { SetOI } from "./controllers/SetOI/index.js";
 
@@ -24,6 +22,10 @@ import { Admin } from "./models";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const BOT_TOKEN = process.env.BOT_TOKEN;
+
+if (!MONGODB_URI) {
+  throw new Error("MONGODB_URI is missing from environment variables.");
+}
 
 if (!BOT_TOKEN) {
   throw new Error("BOT_TOKEN is missing from environment variables.");
@@ -62,15 +64,10 @@ mongoose
     bot.use(session());
     bot.use(stage.middleware());
 
-    // Subscription middleware
-    bot.use(initializeTrial);
-    // Note: checkSubscription should be added selectively to specific handlers that need it
-
     // Хэндлеры
     messageHandler(bot);
     commandHandler(bot);
     actionHandler(bot);
-    subscriptionHandler(bot);
 
     bot.catch((error: any) => {
       logger.error(undefined, "Global error has happened, %O", error);

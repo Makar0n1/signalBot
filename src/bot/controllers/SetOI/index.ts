@@ -11,7 +11,7 @@ import { isValidOIPercenteges, isValidOIPeriod } from "../../utils/validateData"
 import { getMainOIText } from "../../utils/texts";
 
 import getOIKeyboard from "../../keyboards/OI.keyboard";
-import getCancelKeyboard from "../../keyboards/main.keyboard copy";
+import getCancelKeyboard from "../../keyboards/main.keyboard";
 
 import { deleteMessageNext } from "../../middlewares/deleteMessages.middleware";
 
