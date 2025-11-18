@@ -11,7 +11,8 @@ const IPN_CALLBACK_URL = process.env.IPN_CALLBACK_URL || "http://localhost:3000/
 interface CreatePaymentParams {
   user_id: number;
   amount: number;
-  currency?: string;
+  currency?: string; // price_currency (USD, EUR, etc.)
+  pay_currency?: string; // crypto currency (btc, eth, usdttrc20, etc.)
 }
 
 interface NOWPaymentsResponse {
@@ -38,16 +39,28 @@ class PaymentService {
   /**
    * Create a payment for subscription
    */
-  async createPayment({ user_id, amount, currency = "usd" }: CreatePaymentParams) {
+  async createPayment({ user_id, amount, currency = "usd", pay_currency = "btc" }: CreatePaymentParams) {
     try {
+      // Validate API key
+      if (!this.apiKey || this.apiKey.trim() === "") {
+        throw new Error("NOWPAYMENTS_API_KEY is not configured");
+      }
+
       const orderId = `subscription_${user_id}_${Date.now()}`;
+
+      logger.info(undefined, `Creating payment for user ${user_id}`, {
+        price_amount: amount,
+        price_currency: currency,
+        pay_currency: pay_currency,
+        order_id: orderId
+      });
 
       const response = await axios.post<NOWPaymentsResponse>(
         `${this.apiUrl}/payment`,
         {
           price_amount: amount,
           price_currency: currency,
-          pay_currency: "btc", // Default to BTC, можно дать выбор пользователю
+          pay_currency: pay_currency,
           ipn_callback_url: IPN_CALLBACK_URL,
           order_id: orderId,
           order_description: `Подписка на бота - 1 месяц`,
@@ -86,8 +99,18 @@ class PaymentService {
         order_id: orderId,
       };
     } catch (error: any) {
-      logger.error(undefined, "Error creating payment", error.response?.data || error.message);
-      throw new Error("Failed to create payment");
+      logger.error(undefined, "Error creating payment", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
+      throw new Error(`Failed to create payment: ${error.response?.data?.message || error.message}`);
     }
   }
 
@@ -220,6 +243,29 @@ class PaymentService {
     } catch (error) {
       logger.error(undefined, "Error verifying IPN signature", error);
       return false;
+    }
+  }
+
+  /**
+   * Check API status
+   */
+  async checkApiStatus() {
+    try {
+      const response = await axios.get(`${this.apiUrl}/status`, {
+        headers: {
+          "x-api-key": this.apiKey,
+        },
+      });
+
+      logger.info(undefined, "NOWPayments API status", response.data);
+      return response.data;
+    } catch (error: any) {
+      logger.error(undefined, "Error checking API status", {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      return null;
     }
   }
 

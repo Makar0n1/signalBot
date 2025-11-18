@@ -222,7 +222,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
     "pay_usdt_erc20": "usdterc20",
   };
 
-  Object.entries(paymentHandlers).forEach(([action, currency]) => {
+  Object.entries(paymentHandlers).forEach(([action, payCurrency]) => {
     bot.action(action, async (ctx) => {
       try {
         await ctx.answerCbQuery("⏳ Создаём платёж...");
@@ -236,7 +236,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         const payment = await paymentService.createPayment({
           user_id: userId,
           amount: price,
-          currency: "usd"
+          currency: "usd",
+          pay_currency: payCurrency
         });
 
         await ctx.editMessageText(
