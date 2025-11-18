@@ -4,6 +4,7 @@ import getMainKeyboard from "../keyboards/main.keyboard";
 import paymentService from "../services/payment.service";
 import { User } from "../models";
 import logger from "../utils/logger";
+import { tc, getUserLanguage, t } from "../utils/i18n";
 
 export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
@@ -17,21 +18,22 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       const user = await User.findOne({ user_id: userId });
       if (!user) {
-        await ctx.editMessageText("❌ <b>Ошибка: пользователь не найден</b>", { parse_mode: "HTML" });
+        await ctx.editMessageText(tc(ctx, "error.user_not_found"), { parse_mode: "HTML" });
         return;
       }
 
       const now = new Date();
+      const lang = getUserLanguage(ctx);
 
       // Check if trial already started OR if user already has active subscription
       if (user.trial_started_at) {
         const { mainKeyboard } = getMainKeyboard();
         await ctx.editMessageText(
-          "ℹ️ <b>Триал уже был использован</b>\n\nВы можете оформить платную подписку.",
+          tc(ctx, "trial.already_used"),
           { parse_mode: "HTML" }
         );
         await ctx.replyWithHTML(
-          `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+          tc(ctx, "menu.main"),
           mainKeyboard
         );
         return;
@@ -40,11 +42,11 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
         const { mainKeyboard } = getMainKeyboard();
         await ctx.editMessageText(
-          "✅ <b>У вас уже есть активная подписка!</b>\n\nТриал вам не нужен 😊",
+          tc(ctx, "trial.has_subscription"),
           { parse_mode: "HTML" }
         );
         await ctx.replyWithHTML(
-          `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+          tc(ctx, "menu.main"),
           mainKeyboard
         );
         return;
@@ -58,26 +60,22 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       const { mainKeyboard } = getMainKeyboard();
 
+      const trialMessage = `${tc(ctx, "trial.activated.title")}\n\n` +
+        `${tc(ctx, "trial.activated.text")}\n\n` +
+        `${tc(ctx, "trial.activated.access")} <code>${trialExpiry.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}</code>\n\n` +
+        `${tc(ctx, "trial.activated.start")}\n\n` +
+        `${tc(ctx, "menu.bot_intro")}`;
+
       try {
-        await ctx.editMessageText(
-          `🎉 <b>Добро пожаловать!</b>\n\n` +
-          `✨ Ваш <b>24-часовой триал активирован!</b>\n\n` +
-          `У вас теперь полный доступ ко всем функциям бота до <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
-          `📊 Начните работу с главного меню ⬇️`,
-          { parse_mode: "HTML" }
-        );
+        // Delete the inline keyboard message
+        await ctx.deleteMessage();
       } catch (e) {
-        // If edit fails (message too old), send new message
-        await ctx.replyWithHTML(
-          `🎉 <b>Добро пожаловать!</b>\n\n` +
-          `✨ Ваш <b>24-часовой триал активирован!</b>\n\n` +
-          `У вас теперь полный доступ ко всем функциям бота до <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
-          `📊 Начните работу с главного меню ⬇️`
-        );
+        // If delete fails, just continue
       }
 
+      // Send new message with main keyboard
       await ctx.replyWithHTML(
-        `<b>Я - Сигнал Бот 🚀</b>\n\nВнимательно слежу за биржами 🌐 и мгновенно оповещаю вас о важных событиях!\n\n<b>Главное меню ⬇️</b>`,
+        trialMessage,
         mainKeyboard
       );
 
@@ -93,24 +91,38 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
     try {
       await ctx.answerCbQuery();
 
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
+      const lang = getUserLanguage(ctx);
+
       await ctx.editMessageText(
-        `💡 <b>Почему подписка платная?</b>\n\n` +
-        `Наш бот работает <b>24/7</b> и предоставляет вам мгновенные уведомления о важных событиях на криптовалютных биржах.\n\n` +
-        `💸 <b>На что идут средства:</b>\n` +
-        `• Серверная инфраструктура и надёжный хостинг\n` +
-        `• Постоянная поддержка и мониторинг работы\n` +
-        `• Доступ к платным API бирж для получения данных\n` +
-        `• Регулярные обновления и новые функции\n` +
-        `• Техническая поддержка пользователей\n\n` +
-        `💰 Стоимость <b>всего $10/месяц</b> — это символическая плата, которая позволяет нам поддерживать качественный сервис для вас!\n\n` +
-        `🎁 Плюс вы получаете <b>бесплатный 24-часовой триал</b>, чтобы убедиться в качестве нашего сервиса!`,
+        `💡 <b>${lang === 'ru' ? 'Почему подписка платная?' : 'Why is it paid?'}</b>\n\n` +
+        `${lang === 'ru'
+          ? `Наш бот работает <b>24/7</b> и предоставляет вам мгновенные уведомления о важных событиях на криптовалютных биржах.\n\n` +
+            `💸 <b>На что идут средства:</b>\n` +
+            `• Серверная инфраструктура и надёжный хостинг\n` +
+            `• Постоянная поддержка и мониторинг работы\n` +
+            `• Доступ к платным API бирж для получения данных\n` +
+            `• Регулярные обновления и новые функции\n` +
+            `• Техническая поддержка пользователей\n\n` +
+            `💰 Стоимость <b>всего $${price}/месяц</b> — это символическая плата, которая позволяет нам поддерживать качественный сервис для вас!\n\n` +
+            `🎁 Плюс вы получаете <b>бесплатный 24-часовой триал</b>, чтобы убедиться в качестве нашего сервиса!`
+          : `Our bot works <b>24/7</b> and provides instant notifications about important events on crypto exchanges.\n\n` +
+            `💸 <b>What the funds go towards:</b>\n` +
+            `• Server infrastructure and reliable hosting\n` +
+            `• Constant support and monitoring\n` +
+            `• Access to paid exchange APIs for data\n` +
+            `• Regular updates and new features\n` +
+            `• User technical support\n\n` +
+            `💰 Price <b>only $${price}/month</b> — a symbolic fee that allows us to maintain quality service for you!\n\n` +
+            `🎁 Plus you get a <b>free 24-hour trial</b> to verify our service quality!`
+        }`,
         {
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "🚀 Начать триал", callback_data: "start_trial" }],
-              [{ text: "💳 Купить подписку", callback_data: "subscribe" }],
-              [{ text: "⬅️ Назад", callback_data: "back_to_start" }]
+              [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
+              [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
+              [{ text: tc(ctx, "btn.back"), callback_data: "back_to_start" }]
             ]
           }
         }
@@ -125,23 +137,28 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
     try {
       await ctx.answerCbQuery();
 
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
+
+      const welcomeMessage =
+        `${tc(ctx, "welcome.title")}\n\n` +
+        `${tc(ctx, "welcome.intro")}\n\n` +
+        `${tc(ctx, "welcome.features.title")}\n` +
+        `${tc(ctx, "welcome.features.oi")}\n` +
+        `${tc(ctx, "welcome.features.pump")}\n` +
+        `${tc(ctx, "welcome.features.rekt")}\n\n` +
+        `${tc(ctx, "welcome.trial.title")}\n` +
+        `${tc(ctx, "welcome.trial.text")}\n\n` +
+        `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+
       await ctx.editMessageText(
-        `<b>👋 Привет!</b>\n\n` +
-        `Я - <b>Сигнал Бот 🚀</b>, который внимательно следит за биржами 🌐 и мгновенно оповещает вас о важных событиях!\n\n` +
-        `📊 <b>Что я умею:</b>\n` +
-        `• Отслеживать изменения <b>открытого интереса (OI)</b>\n` +
-        `• Уведомлять о <b>пампах и дампах 📈📉</b>\n` +
-        `• Сигнализировать о крупных <b>ликвидациях 💥</b>\n\n` +
-        `🎁 <b>Специальное предложение:</b>\n` +
-        `При нажатии кнопки <b>"Начать"</b> вы получите <b>БЕСПЛАТНЫЙ 24-часовой доступ</b> ко всем функциям бота!\n\n` +
-        `💰 После триала: <b>$10/месяц</b>`,
+        welcomeMessage,
         {
-          parse_markup: "HTML",
+          parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "🚀 Начать", callback_data: "start_trial" }],
-              [{ text: "💳 Купить подписку", callback_data: "subscribe" }],
-              [{ text: "❓ Почему платно?", callback_data: "why_paid" }]
+              [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
+              [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
+              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
             ]
           }
         }
@@ -265,9 +282,21 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         logger.info(undefined, `Payment created for user ${userId}: ${payment.payment_id}`);
       } catch (error) {
         logger.error(undefined, "Error creating payment", error);
+
+        // Return to start menu on error
         await ctx.editMessageText(
-          "❌ <b>Ошибка при создании платежа</b>\n\nПопробуйте позже или обратитесь в поддержку.",
-          { parse_mode: "HTML" }
+          `❌ <b>Ошибка при создании платежа</b>\n\n` +
+          `К сожалению, не удалось создать платёж. Пожалуйста, попробуйте позже.\n\n` +
+          `Вы можете выбрать другой способ оплаты или связаться с поддержкой.`,
+          {
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔄 Попробовать снова", callback_data: "subscribe" }],
+                [{ text: "⬅️ Вернуться к началу", callback_data: "back_to_start" }]
+              ]
+            }
+          }
         );
       }
     });

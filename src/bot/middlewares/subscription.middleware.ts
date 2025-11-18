@@ -1,6 +1,7 @@
-import { Context } from "telegraf";
+import { Context, Markup } from "telegraf";
 import { User } from "../models";
 import logger from "../utils/logger";
+import { tc } from "../utils/i18n";
 
 /**
  * Middleware to initialize trial period for new users
@@ -63,16 +64,22 @@ export const checkSubscription = async (ctx: Context, next: () => Promise<void>)
       return next();
     }
 
-    // Trial expired or no subscription
+    // Trial expired or no subscription - Remove keyboard and show subscription message
+    await ctx.reply(
+      tc(ctx, "trial.expired"),
+      {
+        parse_mode: "HTML",
+        reply_markup: Markup.removeKeyboard().reply_markup
+      }
+    );
+
+    // Send inline keyboard in a separate message
     await ctx.replyWithHTML(
-      `⏰ <b>Триал период истёк!</b>\n\n` +
-      `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
-      `💰 Стоимость: <b>10$ в месяц</b>\n` +
-      `💳 Оплата принимается в криптовалюте`,
+      tc(ctx, "trial.expired"),
       {
         reply_markup: {
           inline_keyboard: [[
-            { text: "💳 Оплатить подписку", callback_data: "subscribe" }
+            { text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }
           ]]
         }
       }

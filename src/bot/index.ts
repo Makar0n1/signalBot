@@ -22,6 +22,7 @@ import { SetPUMP } from "./controllers/SetPUPM/index.js";
 import { SetREKT } from "./controllers/SetREKT/index.js";
 import { Admin } from "./models";
 import subscriptionNotifier from "./services/subscription-notifier.service.js";
+import paymentService from "./services/payment.service";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -102,6 +103,9 @@ mongoose
 
     // Initialize subscription notifier service
     subscriptionNotifier.initialize(bot);
+
+    // Initialize payment service with bot instance
+    paymentService.setBot(bot);
 
     // ByBitService = ByBitServiceCl.getByBitService(Trackable, bot);
     // BYBIT_API = ByBitWebSocketApiService.getWebsocketClient();

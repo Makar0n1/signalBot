@@ -8,6 +8,7 @@ import guestService from "../services/guest.service";
 import { Admin } from "../models";
 import userService from "../services/user.service";
 import { createOrUpdateMainAdmin } from "..";
+import { tc, getUserLanguage } from "../utils/i18n";
 
 export default function handlers(bot: Telegraf<Context>) {
   bot.command(
@@ -34,17 +35,18 @@ export default function handlers(bot: Telegraf<Context>) {
       const user = await User.findOne({ user_id: data.user_id });
 
       if (!user) {
-        await ctx.replyWithHTML("❌ <b>Ошибка при создании пользователя</b>");
+        await ctx.replyWithHTML(tc(ctx, "error.user_create"));
         return;
       }
 
       const now = new Date();
+      const lang = getUserLanguage(ctx);
 
       // Check if user is admin
       if (user.is_admin) {
         const { mainKeyboard } = getMainKeyboard();
         await ctx.replyWithHTML(
-          `<b>👋 Привет, Админ!</b>\n\nЯ - <b>Сигнал Бот 🚀</b>, который внимательно следит за биржами 🌐 и мгновенно оповещает вас, когда произойдут важные события, такие как изменение <b>открытого интереса</b>, <b>памп 📈</b> или <b>ликвидация 💥</b> всех криптовалютных пар! 💹\n\n<b>Главное меню ⬇️</b>`,
+          tc(ctx, "admin.welcome"),
           mainKeyboard
         );
         return;
@@ -54,7 +56,7 @@ export default function handlers(bot: Telegraf<Context>) {
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
         const { mainKeyboard } = getMainKeyboard();
         await ctx.replyWithHTML(
-          `<b>👋 С возвращением!</b>\n\nЯ - <b>Сигнал Бот 🚀</b>, который внимательно следит за биржами 🌐 и мгновенно оповещает вас, когда произойдут важные события, такие как изменение <b>открытого интереса</b>, <b>памп 📈</b> или <b>ликвидация 💥</b> всех криптовалютных пар! 💹\n\n<b>Главное меню ⬇️</b>`,
+          tc(ctx, "admin.welcome"), // Using same message for returning users
           mainKeyboard
         );
         return;
@@ -64,8 +66,11 @@ export default function handlers(bot: Telegraf<Context>) {
       if (user.trial_expires_at && user.trial_expires_at > now) {
         const { mainKeyboard } = getMainKeyboard();
         const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
+        const trialActive = lang === "ru"
+          ? `✨ <b>У вас активен триал на ${hoursLeft} часов</b>`
+          : `✨ <b>You have ${hoursLeft} hours of trial left</b>`;
         await ctx.replyWithHTML(
-          `<b>👋 Добро пожаловать!</b>\n\nЯ - <b>Сигнал Бот 🚀</b>, который внимательно следит за биржами 🌐 и мгновенно оповещает вас, когда произойдут важные события, такие как изменение <b>открытого интереса</b>, <b>памп 📈</b> или <b>ликвидация 💥</b> всех криптовалютных пар! 💹\n\n✨ <b>У вас активен триал на ${hoursLeft} часов</b>\n\n<b>Главное меню ⬇️</b>`,
+          `${tc(ctx, "trial.activated.title")}\n\n${tc(ctx, "welcome.intro")}\n\n${trialActive}\n\n${tc(ctx, "menu.bot_intro")}`,
           mainKeyboard
         );
         return;
@@ -73,21 +78,21 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // New user or trial expired - show welcome message with subscription options
       await ctx.replyWithHTML(
-        `<b>👋 Привет!</b>\n\n` +
-        `Я - <b>Сигнал Бот 🚀</b>, который внимательно следит за биржами 🌐 и мгновенно оповещает вас о важных событиях!\n\n` +
-        `📊 <b>Что я умею:</b>\n` +
-        `• Отслеживать изменения <b>открытого интереса (OI)</b>\n` +
-        `• Уведомлять о <b>пампах и дампах 📈📉</b>\n` +
-        `• Сигнализировать о крупных <b>ликвидациях 💥</b>\n\n` +
-        `🎁 <b>Специальное предложение:</b>\n` +
-        `При нажатии кнопки <b>"Начать"</b> вы получите <b>БЕСПЛАТНЫЙ 24-часовой доступ</b> ко всем функциям бота!\n\n` +
-        `💰 После триала: <b>$10/месяц</b>`,
+        `${tc(ctx, "welcome.title")}\n\n` +
+        `${tc(ctx, "welcome.intro")}\n\n` +
+        `${tc(ctx, "welcome.features.title")}\n` +
+        `${tc(ctx, "welcome.features.oi")}\n` +
+        `${tc(ctx, "welcome.features.pump")}\n` +
+        `${tc(ctx, "welcome.features.rekt")}\n\n` +
+        `${tc(ctx, "welcome.trial.title")}\n` +
+        `${tc(ctx, "welcome.trial.text")}\n\n` +
+        `${tc(ctx, "welcome.price")}`,
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: "🚀 Начать", callback_data: "start_trial" }],
-              [{ text: "💳 Купить подписку", callback_data: "subscribe" }],
-              [{ text: "❓ Почему платно?", callback_data: "why_paid" }]
+              [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
+              [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
+              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
             ]
           }
         }

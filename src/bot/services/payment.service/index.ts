@@ -1,7 +1,10 @@
 import axios from "axios";
 import crypto from "crypto";
+import { Telegraf } from "telegraf";
 import { Payment, User } from "../../models";
 import logger from "../../utils/logger";
+import getMainKeyboard from "../../keyboards/main.keyboard";
+import { t, Language } from "../../utils/i18n";
 
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY || "";
 const NOWPAYMENTS_IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "";
@@ -30,10 +33,18 @@ interface NOWPaymentsResponse {
 class PaymentService {
   private apiKey: string;
   private apiUrl: string;
+  private bot?: Telegraf;
 
   constructor() {
     this.apiKey = NOWPAYMENTS_API_KEY;
     this.apiUrl = NOWPAYMENTS_API_URL;
+  }
+
+  /**
+   * Set bot instance for sending notifications
+   */
+  setBot(bot: Telegraf) {
+    this.bot = bot;
   }
 
   /**
@@ -195,15 +206,53 @@ class PaymentService {
       payment.status = payment_status;
       await payment.save();
 
-      // If payment is finished, activate subscription
+      // If payment is finished, activate subscription and notify user
       if (payment_status === 'finished' || payment_status === 'confirmed') {
         await this.activateSubscription(payment.user_id);
+
+        // Send notification to user
+        if (this.bot) {
+          try {
+            const user = await User.findOne({ user_id: payment.user_id });
+            const lang: Language = (user?.language_code?.startsWith('ru')) ? 'ru' : 'en';
+            const { mainKeyboard } = getMainKeyboard();
+
+            const message = `${t('payment.confirmed', lang)}\n\n${t('menu.bot_intro', lang)}`;
+
+            await this.bot.telegram.sendMessage(
+              payment.user_id,
+              message,
+              {
+                parse_mode: "HTML",
+                reply_markup: mainKeyboard.reply_markup
+              }
+            );
+            logger.info(undefined, `Sent payment success notification to user ${payment.user_id}`);
+          } catch (notifyError) {
+            logger.error(undefined, `Failed to send notification to user ${payment.user_id}`, notifyError);
+          }
+        }
       }
 
       // If payment failed or expired, notify user
       if (payment_status === 'failed' || payment_status === 'expired') {
-        // TODO: Notify user about failed payment
-        logger.info(undefined, `Payment ${payment_status} for user ${payment.user_id}`);
+        if (this.bot) {
+          try {
+            const user = await User.findOne({ user_id: payment.user_id });
+            const lang: Language = (user?.language_code?.startsWith('ru')) ? 'ru' : 'en';
+
+            const messageKey = payment_status === 'failed' ? 'payment.failed' : 'payment.expired';
+
+            await this.bot.telegram.sendMessage(
+              payment.user_id,
+              t(messageKey, lang),
+              { parse_mode: "HTML" }
+            );
+            logger.info(undefined, `Sent payment ${payment_status} notification to user ${payment.user_id}`);
+          } catch (notifyError) {
+            logger.error(undefined, `Failed to send notification to user ${payment.user_id}`, notifyError);
+          }
+        }
       }
     } catch (error) {
       logger.error(undefined, "Error handling webhook", error);
