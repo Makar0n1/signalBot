@@ -42,6 +42,7 @@ if (process.env.NODE_ENV !== "production") {
 
 const loggerWithCtx = {
   debug: (ctx: Context | undefined, msg: string, ...data: any[]) => logger.debug(prepareMessage(ctx, msg, ...data)),
+  info: (ctx: Context | undefined, msg: string, ...data: any[]) => logger.info(prepareMessage(ctx, msg, ...data)),
   error: (ctx: Context | undefined, msg: string, ...data: any[]) => logger.error(prepareMessage(ctx, msg, ...data)),
 };
 
