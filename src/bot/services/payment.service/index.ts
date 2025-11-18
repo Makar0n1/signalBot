@@ -37,6 +37,29 @@ class PaymentService {
   }
 
   /**
+   * Get estimated price to ensure we meet minimum requirements
+   */
+  async getEstimatedPrice(amount: number, currency: string, pay_currency: string) {
+    try {
+      const response = await axios.get(`${this.apiUrl}/estimate`, {
+        params: {
+          amount: amount,
+          currency_from: currency,
+          currency_to: pay_currency,
+        },
+        headers: {
+          "x-api-key": this.apiKey,
+        },
+      });
+
+      return response.data;
+    } catch (error: any) {
+      logger.error(undefined, "Error getting estimate", error.response?.data || error.message);
+      return null;
+    }
+  }
+
+  /**
    * Create a payment for subscription
    */
   async createPayment({ user_id, amount, currency = "usd", pay_currency = "btc" }: CreatePaymentParams) {
@@ -48,17 +71,36 @@ class PaymentService {
 
       const orderId = `subscription_${user_id}_${Date.now()}`;
 
+      // Get estimate to check minimum amount
+      const estimate = await this.getEstimatedPrice(amount, currency, pay_currency);
+
+      let finalAmount = amount;
+      if (estimate && estimate.min_amount) {
+        // If estimated amount is less than minimum, adjust the price
+        if (estimate.estimated_amount < estimate.min_amount) {
+          // Calculate how much more we need in USD
+          const ratio = estimate.min_amount / estimate.estimated_amount;
+          finalAmount = amount * ratio + 0.5; // Add small buffer
+          logger.info(undefined, `Adjusted amount to meet minimum: ${amount} -> ${finalAmount}`);
+        }
+      } else {
+        // Fallback: add buffer if we can't get estimate
+        finalAmount = amount + 1;
+      }
+
       logger.info(undefined, `Creating payment for user ${user_id}`, {
-        price_amount: amount,
+        original_amount: amount,
+        final_amount: finalAmount,
         price_currency: currency,
         pay_currency: pay_currency,
-        order_id: orderId
+        order_id: orderId,
+        estimate: estimate
       });
 
       const response = await axios.post<NOWPaymentsResponse>(
         `${this.apiUrl}/payment`,
         {
-          price_amount: amount,
+          price_amount: finalAmount,
           price_currency: currency,
           pay_currency: pay_currency,
           ipn_callback_url: IPN_CALLBACK_URL,
