@@ -23,11 +23,29 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       const now = new Date();
 
-      // Check if trial already started
+      // Check if trial already started OR if user already has active subscription
       if (user.trial_started_at) {
+        const { mainKeyboard } = getMainKeyboard();
         await ctx.editMessageText(
           "ℹ️ <b>Триал уже был использован</b>\n\nВы можете оформить платную подписку.",
           { parse_mode: "HTML" }
+        );
+        await ctx.replyWithHTML(
+          `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+          mainKeyboard
+        );
+        return;
+      }
+
+      if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
+        const { mainKeyboard } = getMainKeyboard();
+        await ctx.editMessageText(
+          "✅ <b>У вас уже есть активная подписка!</b>\n\nТриал вам не нужен 😊",
+          { parse_mode: "HTML" }
+        );
+        await ctx.replyWithHTML(
+          `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+          mainKeyboard
         );
         return;
       }
@@ -39,16 +57,27 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       await user.save();
 
       const { mainKeyboard } = getMainKeyboard();
-      await ctx.editMessageText(
-        `🎉 <b>Добро пожаловать!</b>\n\n` +
-        `✨ Ваш <b>24-часовой триал активирован!</b>\n\n` +
-        `У вас теперь полный доступ ко всем функциям бота до <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
-        `📊 Начните работу с главного меню ⬇️`,
-        { parse_mode: "HTML" }
-      );
+
+      try {
+        await ctx.editMessageText(
+          `🎉 <b>Добро пожаловать!</b>\n\n` +
+          `✨ Ваш <b>24-часовой триал активирован!</b>\n\n` +
+          `У вас теперь полный доступ ко всем функциям бота до <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
+          `📊 Начните работу с главного меню ⬇️`,
+          { parse_mode: "HTML" }
+        );
+      } catch (e) {
+        // If edit fails (message too old), send new message
+        await ctx.replyWithHTML(
+          `🎉 <b>Добро пожаловать!</b>\n\n` +
+          `✨ Ваш <b>24-часовой триал активирован!</b>\n\n` +
+          `У вас теперь полный доступ ко всем функциям бота до <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
+          `📊 Начните работу с главного меню ⬇️`
+        );
+      }
 
       await ctx.replyWithHTML(
-        `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+        `<b>Я - Сигнал Бот 🚀</b>\n\nВнимательно слежу за биржами 🌐 и мгновенно оповещаю вас о важных событиях!\n\n<b>Главное меню ⬇️</b>`,
         mainKeyboard
       );
 

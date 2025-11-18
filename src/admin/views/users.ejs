@@ -284,6 +284,11 @@
                                     ➕ Продлить
                                 </button>`
                             }
+                            ${user.is_admin ? '' :
+                                `<button class="danger" onclick="deleteUser(${user.user_id})">
+                                    🗑️ Удалить
+                                </button>`
+                            }
                         </td>
                     `;
                     tbody.appendChild(row);
@@ -367,6 +372,29 @@
                 }
             } catch (error) {
                 alert('Ошибка при продлении подписки');
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm(`Вы уверены, что хотите удалить пользователя ${userId}?\n\nЭто действие необратимо! Пользователь сможет зарегистрироваться заново как новый пользователь.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    alert('Пользователь успешно удалён!');
+                    loadUsers(currentPage);
+                } else {
+                    const data = await response.json();
+                    alert(`Ошибка при удалении пользователя: ${data.error || 'Неизвестная ошибка'}`);
+                }
+            } catch (error) {
+                alert('Ошибка при удалении пользователя');
             }
         }
 

@@ -4,31 +4,13 @@ import logger from "../utils/logger";
 
 /**
  * Middleware to initialize trial period for new users
+ * NOTE: Trial is now activated manually via "start_trial" button
+ * This middleware is kept for backward compatibility but doesn't auto-activate trial
  */
 export const initializeTrial = async (ctx: Context, next: () => Promise<void>) => {
   try {
-    const userId = ctx.from?.id;
-    if (!userId) return next();
-
-    const user = await User.findOne({ user_id: userId });
-
-    // Skip trial for admins
-    if (user && user.is_admin) {
-      return next();
-    }
-
-    if (user && !user.trial_started_at && !user.subscription_active && !user.is_admin) {
-      // Start 24-hour trial
-      const now = new Date();
-      const trialExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
-
-      user.trial_started_at = now;
-      user.trial_expires_at = trialExpiry;
-      await user.save();
-
-      logger.info(undefined, `Trial period started for user ${userId}, expires at ${trialExpiry}`);
-    }
-
+    // Trial activation moved to subscriptionHandler (start_trial button)
+    // This middleware now just passes through
     return next();
   } catch (error) {
     logger.error(undefined, "Error in initializeTrial middleware", error);
