@@ -23,6 +23,7 @@ export interface IUser extends Document {
   subscription_active: boolean;
   subscription_expires_at?: Date;
   is_banned: boolean;
+  is_admin: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -42,6 +43,7 @@ export const UserSchema = new mongoose.Schema({
   subscription_active: { type: Boolean, default: false },
   subscription_expires_at: { type: Date },
   is_banned: { type: Boolean, default: false },
+  is_admin: { type: Boolean, default: false },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

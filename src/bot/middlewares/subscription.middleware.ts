@@ -12,7 +12,12 @@ export const initializeTrial = async (ctx: Context, next: () => Promise<void>) =
 
     const user = await User.findOne({ user_id: userId });
 
-    if (user && !user.trial_started_at && !user.subscription_active) {
+    // Skip trial for admins
+    if (user && user.is_admin) {
+      return next();
+    }
+
+    if (user && !user.trial_started_at && !user.subscription_active && !user.is_admin) {
       // Start 24-hour trial
       const now = new Date();
       const trialExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
@@ -22,13 +27,6 @@ export const initializeTrial = async (ctx: Context, next: () => Promise<void>) =
       await user.save();
 
       logger.info(undefined, `Trial period started for user ${userId}, expires at ${trialExpiry}`);
-
-      await ctx.replyWithHTML(
-        `🎉 <b>Добро пожаловать!</b>\n\n` +
-        `✨ Вам предоставлен <b>24-часовой триал</b> с полным доступом ко всем функциям бота!\n\n` +
-        `⏰ Триал истекает: <code>${trialExpiry.toLocaleString('ru-RU')}</code>\n\n` +
-        `💳 После окончания триала вы сможете оформить подписку за <b>10$ в месяц</b>`
-      );
     }
 
     return next();
@@ -54,6 +52,11 @@ export const checkSubscription = async (ctx: Context, next: () => Promise<void>)
     if (!user) {
       await ctx.replyWithHTML("❌ <b>Пользователь не найден</b>");
       return;
+    }
+
+    // Admins always have access
+    if (user.is_admin) {
+      return next();
     }
 
     // Check if user is banned
@@ -106,6 +109,9 @@ export const hasAccess = async (userId: number): Promise<boolean> => {
     const user = await User.findOne({ user_id: userId });
 
     if (!user || user.is_banned) return false;
+
+    // Admins always have access
+    if (user.is_admin) return true;
 
     const now = new Date();
 

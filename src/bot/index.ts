@@ -21,6 +21,7 @@ import BinanceServiceCl from "./services/binance.service/binance.service.js";
 import { SetPUMP } from "./controllers/SetPUPM/index.js";
 import { SetREKT } from "./controllers/SetREKT/index.js";
 import { Admin } from "./models";
+import subscriptionNotifier from "./services/subscription-notifier.service.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -38,11 +39,29 @@ export const createOrUpdateMainAdmin = async (user_id: string, isSuperAdmin: boo
       logger.debug(undefined, `Админ с user_id: ${user_id} уже существует`);
       await Admin.updateOne({ user_id }, { isSuperAdmin: true });
       logger.debug(undefined, `Данные суперАдмина с user_id: ${user_id} обновлены`);
-      return;
+    } else {
+      await Admin.create({ user_id, isSuperAdmin });
+      logger.debug(undefined, `Создан суперАдмин с user_id: ${user_id}`);
     }
-    await UserService.createUser({ user_id: Number(user_id) });
-    await Admin.create({ user_id, isSuperAdmin });
-    logger.debug(undefined, `Создан суперАдмин с user_id: ${user_id}`);
+
+    // Create or update user and mark as admin
+    const { User } = await import("./models/index.js");
+    const user = await User.findOne({ user_id: Number(user_id) });
+    if (user) {
+      user.is_admin = true;
+      user.subscription_active = true; // Admin always has access
+      await user.save();
+      logger.debug(undefined, `Пользователь ${user_id} отмечен как админ`);
+    } else {
+      await UserService.createUser({ user_id: Number(user_id) });
+      const newUser = await User.findOne({ user_id: Number(user_id) });
+      if (newUser) {
+        newUser.is_admin = true;
+        newUser.subscription_active = true;
+        await newUser.save();
+        logger.debug(undefined, `Создан пользователь-админ ${user_id}`);
+      }
+    }
   } catch (err) {
     logger.error(undefined, "Ошибка при создании суперАдмина", err);
   }
@@ -80,6 +99,9 @@ mongoose
 
     BinanceService = BinanceServiceCl.getService(bot);
     ByBitService = ByBitServiceCl.getService(bot);
+
+    // Initialize subscription notifier service
+    subscriptionNotifier.initialize(bot);
 
     // ByBitService = ByBitServiceCl.getByBitService(Trackable, bot);
     // BYBIT_API = ByBitWebSocketApiService.getWebsocketClient();

@@ -157,6 +157,16 @@
             color: #721c24;
         }
 
+        .badge.admin {
+            background: #ffd700;
+            color: #856404;
+            font-weight: bold;
+        }
+
+        tr.admin-row {
+            background: #fff3cd !important;
+        }
+
         .actions {
             display: flex;
             gap: 5px;
@@ -238,8 +248,15 @@
                 data.users.forEach(user => {
                     const row = document.createElement('tr');
 
+                    // Highlight admin rows
+                    if (user.is_admin) {
+                        row.className = 'admin-row';
+                    }
+
                     let statusBadge = '<span class="badge expired">Нет доступа</span>';
-                    if (user.is_banned) {
+                    if (user.is_admin) {
+                        statusBadge = '<span class="badge admin">👑 Администратор</span>';
+                    } else if (user.is_banned) {
                         statusBadge = '<span class="badge banned">Заблокирован</span>';
                     } else if (user.has_access) {
                         if (user.subscription_active) {
@@ -256,12 +273,17 @@
                         <td>${user.trial_expires ? new Date(user.trial_expires).toLocaleString('ru-RU') : '-'}</td>
                         <td>${user.subscription_expires ? new Date(user.subscription_expires).toLocaleString('ru-RU') : '-'}</td>
                         <td class="actions">
-                            <button class="${user.is_banned ? 'success' : 'danger'}" onclick="toggleBan(${user.user_id}, ${!user.is_banned})">
-                                ${user.is_banned ? '✅ Разбанить' : '🚫 Забанить'}
-                            </button>
-                            <button class="success" onclick="extendSubscription(${user.user_id})">
-                                ➕ Продлить
-                            </button>
+                            ${user.is_admin ?
+                                '<button disabled style="opacity: 0.5; cursor: not-allowed;">👑 Админ</button>' :
+                                `<button class="${user.is_banned ? 'success' : 'danger'}" onclick="toggleBan(${user.user_id}, ${!user.is_banned})">
+                                    ${user.is_banned ? '✅ Разбанить' : '🚫 Забанить'}
+                                </button>`
+                            }
+                            ${user.is_admin ? '' :
+                                `<button class="success" onclick="extendSubscription(${user.user_id})">
+                                    ➕ Продлить
+                                </button>`
+                            }
                         </td>
                     `;
                     tbody.appendChild(row);

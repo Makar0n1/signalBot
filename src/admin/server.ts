@@ -16,6 +16,37 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(process.cwd(), "public")));
 
+// Basic Authentication Middleware
+const basicAuth = (req: Request, res: Response, next: NextFunction) => {
+  // Skip auth for webhooks
+  if (req.path.startsWith('/webhooks')) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Admin Dashboard"');
+    return res.status(401).send('Authentication required');
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+  const [username, password] = credentials.split(':');
+
+  const validUsername = process.env.ADMIN_USERNAME || 'admin';
+  const validPassword = process.env.ADMIN_PASSWORD || 'admin';
+
+  if (username === validUsername && password === validPassword) {
+    return next();
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Admin Dashboard"');
+  return res.status(401).send('Invalid credentials');
+};
+
+app.use(basicAuth);
+
 // View engine setup
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "src/admin/views"));

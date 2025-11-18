@@ -5,6 +5,7 @@ export const MAIN_ROUTES = {
   PUMP: "📈 Pump Screener",
   REKT: "💣 REKT Screener",
   Exchange: "💹 Выбор биржи",
+  Subscription: "📱 Моя подписка",
 };
 
 export const OI_ROUTES = {

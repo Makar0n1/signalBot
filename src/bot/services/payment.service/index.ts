@@ -146,6 +146,7 @@ class PaymentService {
 
   /**
    * Activate subscription for user
+   * If user already has active subscription, extends it by 30 days
    */
   async activateSubscription(user_id: number) {
     try {
@@ -156,9 +157,19 @@ class PaymentService {
         return;
       }
 
-      // Set subscription active for 30 days
       const now = new Date();
-      const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      let expiryDate: Date;
+
+      // Check if user already has active subscription
+      if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
+        // Extend existing subscription by 30 days
+        expiryDate = new Date(user.subscription_expires_at.getTime() + 30 * 24 * 60 * 60 * 1000);
+        logger.info(undefined, `Extending subscription for user ${user_id} from ${user.subscription_expires_at} to ${expiryDate}`);
+      } else {
+        // Start new subscription for 30 days
+        expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        logger.info(undefined, `Starting new subscription for user ${user_id}, expires at ${expiryDate}`);
+      }
 
       user.subscription_active = true;
       user.subscription_expires_at = expiryDate;

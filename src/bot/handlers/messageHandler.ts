@@ -73,6 +73,89 @@ export default function handlers(bot: Telegraf<Context>) {
     })
   );
 
+  // My Subscription
+  bot.hears(
+    MAIN_ROUTES.Subscription,
+    isUser,
+    asyncWrapper(async (ctx: Context) => {
+      const user = await User.findOne({ user_id: ctx.message?.from.id });
+
+      if (!user) {
+        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        return;
+      }
+
+      const now = new Date();
+
+      // Check if user is admin
+      if (user.is_admin) {
+        await ctx.replyWithHTML(
+          `👑 <b>Статус подписки: Администратор</b>\n\n` +
+          `У вас полный неограниченный доступ ко всем функциям бота!`
+        );
+        return;
+      }
+
+      // Check if user has active subscription
+      if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
+        const daysLeft = Math.ceil((user.subscription_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        const canRenew = daysLeft <= 7;
+
+        await ctx.replyWithHTML(
+          `✅ <b>Подписка активна</b>\n\n` +
+          `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n` +
+          `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
+          `💰 Стоимость продления: <b>$10/месяц</b>` +
+          (canRenew ? "\n\n💡 Вы можете продлить подписку уже сейчас!" : "\n\n💡 Продление станет доступно за 7 дней до окончания."),
+          canRenew ? {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "💳 Продлить подписку", callback_data: "subscribe" }
+              ]]
+            }
+          } : undefined
+        );
+        return;
+      }
+
+      // Check if trial is active
+      if (user.trial_expires_at && user.trial_expires_at > now) {
+        const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
+
+        await ctx.replyWithHTML(
+          `🎁 <b>Триал активен</b>\n\n` +
+          `📅 Действует до: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n` +
+          `⏰ Осталось часов: <b>${hoursLeft}</b>\n\n` +
+          `💡 После окончания триала вы можете оформить подписку за <b>$10/месяц</b>`,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "💳 Оформить подписку", callback_data: "subscribe" }
+              ]]
+            }
+          }
+        );
+        return;
+      }
+
+      // No active subscription or trial
+      await ctx.replyWithHTML(
+        `⏰ <b>Подписка не активна</b>\n\n` +
+        `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
+        `💰 Стоимость: <b>$10/месяц</b>\n` +
+        `💳 Оплата принимается в криптовалюте`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "💳 Оформить подписку", callback_data: "subscribe" }
+            ]]
+          }
+        }
+      );
+    })
+  );
+
   // PUMP screener
   bot.hears(
     BACK_ROUTES.BACK,

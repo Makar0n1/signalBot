@@ -37,12 +37,13 @@ router.get("/", async (req: Request, res: Response) => {
       subscription_active: user.subscription_active,
       subscription_expires: user.subscription_expires_at,
       is_banned: user.is_banned,
+      is_admin: user.is_admin,
       created_at: user.created_at,
-      has_access: user.is_banned ? false : (
+      has_access: user.is_admin || (user.is_banned ? false : (
         user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > new Date()
       ) || (
         user.trial_expires_at && user.trial_expires_at > new Date()
-      )
+      ))
     }));
 
     res.json({
@@ -95,6 +96,11 @@ router.patch("/:userId/ban", async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    // Prevent banning admins
+    if (user.is_admin) {
+      return res.status(403).json({ error: "Cannot ban admin users" });
     }
 
     user.is_banned = is_banned;
