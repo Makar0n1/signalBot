@@ -311,16 +311,27 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       const status = await paymentService.getPaymentStatus(paymentId);
 
       if (status.payment_status === "finished" || status.payment_status === "confirmed") {
-        await ctx.editMessageText(
-          `✅ <b>Платёж подтверждён!</b>\n\n` +
-          `Спасибо за покупку подписки! Ваш доступ к боту активирован на 30 дней.\n\n` +
-          `🎉 Приятного использования!`,
-          { parse_mode: "HTML" }
-        );
+        // Delete the payment message
+        try {
+          await ctx.deleteMessage();
+        } catch (e) {
+          // If delete fails, try to edit the message
+          await ctx.editMessageText(
+            `✅ <b>Платёж подтверждён!</b>\n\n` +
+            `Спасибо за покупку подписки! Ваш доступ к боту активирован на 30 дней.\n\n` +
+            `🎉 Приятного использования!`,
+            { parse_mode: "HTML" }
+          );
+        }
 
+        // Send success message with main keyboard
         const { mainKeyboard } = getMainKeyboard();
+        const lang = getUserLanguage(ctx);
+
         await ctx.replyWithHTML(
-          `<b>Главное меню</b>\n\nВыберите нужный раздел:`,
+          `✅ <b>${lang === 'ru' ? 'Платёж получен!' : 'Payment received!'}</b>\n\n` +
+          `${lang === 'ru' ? 'Приятного пользования!' : 'Enjoy using the bot!'}\n\n` +
+          `${tc(ctx, "menu.bot_intro")}`,
           mainKeyboard
         );
       } else if (status.payment_status === "waiting" || status.payment_status === "confirming") {
@@ -344,9 +355,32 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
   bot.action("cancel_payment", async (ctx) => {
     try {
       await ctx.answerCbQuery();
+
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
+
+      const welcomeMessage =
+        `${tc(ctx, "welcome.title")}\n\n` +
+        `${tc(ctx, "welcome.intro")}\n\n` +
+        `${tc(ctx, "welcome.features.title")}\n` +
+        `${tc(ctx, "welcome.features.oi")}\n` +
+        `${tc(ctx, "welcome.features.pump")}\n` +
+        `${tc(ctx, "welcome.features.rekt")}\n\n` +
+        `${tc(ctx, "welcome.trial.title")}\n` +
+        `${tc(ctx, "welcome.trial.text")}\n\n` +
+        `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+
       await ctx.editMessageText(
-        "❌ <b>Оплата отменена</b>\n\nВы можете оформить подписку в любое время.",
-        { parse_mode: "HTML" }
+        welcomeMessage,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
+              [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
+              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
+            ]
+          }
+        }
       );
     } catch (error) {
       logger.error(undefined, "Error canceling payment", error);

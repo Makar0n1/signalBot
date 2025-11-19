@@ -261,6 +261,29 @@ class BinanceService {
   }
 
   private async sendPumpSignal(ticker: Ticker, pump_record: any, pump_change: number, type: "growth" | "recession") {
+    // Check if user has active subscription or trial
+    const now = new Date();
+    const user = pump_record.user;
+
+    // Skip if user is banned
+    if (user.is_banned) {
+      return;
+    }
+
+    // Check subscription/trial access
+    const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+    const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+    const isAdmin = user.is_admin;
+
+    // Only send signals if user has access
+    if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+      logger.debug(
+        undefined,
+        `Skipping signal for user ${pump_record.user.user_id} - no active subscription or trial`
+      );
+      return;
+    }
+
     const signals_count =
       type === "growth" ? pump_record.h24_signal_count_growth + 1 : pump_record.h24_signal_count_recession + 1;
     const period =
@@ -339,6 +362,30 @@ class BinanceService {
       if (!rect_record.user?.config) {
         continue;
       }
+
+      // Check if user has active subscription or trial
+      const now = new Date();
+      const user = rect_record.user;
+
+      // Skip if user is banned
+      if (user.is_banned) {
+        continue;
+      }
+
+      // Check subscription/trial access
+      const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+      const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+      const isAdmin = user.is_admin;
+
+      // Only send signals if user has access
+      if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+        logger.debug(
+          undefined,
+          `Skipping REKT signal for user ${rect_record.user.user_id} - no active subscription or trial`
+        );
+        continue;
+      }
+
       if (Number(liquidation.price) >= rect_record.user.config.rekt_limit) {
         const signals_count = rect_record.h24_signal_count_liq + 1;
 

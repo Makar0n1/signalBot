@@ -506,6 +506,29 @@ class ByBitSevice {
     pump_change: number,
     type: "growth" | "recession"
   ) {
+    // Check if user has active subscription or trial
+    const now = new Date();
+    const user = pump_record.user;
+
+    // Skip if user is banned
+    if (user.is_banned) {
+      return;
+    }
+
+    // Check subscription/trial access
+    const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+    const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+    const isAdmin = user.is_admin;
+
+    // Only send signals if user has access
+    if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+      logger.debug(
+        undefined,
+        `Skipping signal for user ${pump_record.user.user_id} - no active subscription or trial`
+      );
+      return;
+    }
+
     const signals_count =
       type === "growth" ? pump_record.h24_signal_count_growth + 1 : pump_record.h24_signal_count_recession + 1;
     const period =
@@ -538,6 +561,29 @@ class ByBitSevice {
     oi_change: number,
     type: "growth" | "recession"
   ) {
+    // Check if user has active subscription or trial
+    const now = new Date();
+    const user = ticker.user;
+
+    // Skip if user is banned
+    if (user.is_banned) {
+      return;
+    }
+
+    // Check subscription/trial access
+    const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+    const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+    const isAdmin = user.is_admin;
+
+    // Only send signals if user has access
+    if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+      logger.debug(
+        undefined,
+        `Skipping OI signal for user ${ticker.user.user_id} - no active subscription or trial`
+      );
+      return;
+    }
+
     const signals_count =
       type === "growth" ? ticker.h24_signal_count_growth + 1 : ticker.h24_signal_count_recession + 1;
     const period = type === "growth" ? ticker.user.config.pump_growth_period : ticker.user.config.pump_recession_period;

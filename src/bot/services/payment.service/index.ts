@@ -217,7 +217,9 @@ class PaymentService {
             const lang: Language = (user?.language_code?.startsWith('ru')) ? 'ru' : 'en';
             const { mainKeyboard } = getMainKeyboard();
 
-            const message = `${t('payment.confirmed', lang)}\n\n${t('menu.bot_intro', lang)}`;
+            const message = lang === 'ru'
+              ? `✅ <b>Платёж получен!</b>\n\nПриятного пользования!\n\n${t('menu.bot_intro', lang)}`
+              : `✅ <b>Payment received!</b>\n\nEnjoy using the bot!\n\n${t('menu.bot_intro', lang)}`;
 
             await this.bot.telegram.sendMessage(
               payment.user_id,

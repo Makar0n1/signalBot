@@ -18,8 +18,37 @@ export default function handlers(bot: Telegraf<Context>) {
     MAIN_ROUTES.OI,
     isUser,
     asyncWrapper(async (ctx: Context) => {
-      const { oiKeyboard } = getOIKeyboard();
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+
+      if (!user) {
+        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        return;
+      }
+
+      // Check subscription access
+      const now = new Date();
+      const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+      const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+      const isAdmin = user.is_admin;
+
+      // If no access, show subscription message
+      if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+        const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
+        const message = wasTrialUser
+          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
+          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
+
+        await ctx.replyWithHTML(message, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "💳 Оформить подписку", callback_data: "subscribe" }
+            ]]
+          }
+        });
+        return;
+      }
+
+      const { oiKeyboard } = getOIKeyboard();
       const oiText = getMainOIText(user.config);
       await ctx.replyWithHTML(oiText, oiKeyboard);
     })
@@ -30,8 +59,37 @@ export default function handlers(bot: Telegraf<Context>) {
     MAIN_ROUTES.PUMP,
     isUser,
     asyncWrapper(async (ctx: Context) => {
-      const { pumpKeyboard } = getPUMPKeyboard();
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+
+      if (!user) {
+        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        return;
+      }
+
+      // Check subscription access
+      const now = new Date();
+      const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+      const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+      const isAdmin = user.is_admin;
+
+      // If no access, show subscription message
+      if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+        const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
+        const message = wasTrialUser
+          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
+          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
+
+        await ctx.replyWithHTML(message, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "💳 Оформить подписку", callback_data: "subscribe" }
+            ]]
+          }
+        });
+        return;
+      }
+
+      const { pumpKeyboard } = getPUMPKeyboard();
       const pumpText = getMainPumpText(user.config);
 
       await ctx.replyWithHTML(pumpText, pumpKeyboard);
@@ -43,12 +101,36 @@ export default function handlers(bot: Telegraf<Context>) {
     MAIN_ROUTES.REKT,
     isUser,
     asyncWrapper(async (ctx: Context, next: Function) => {
-      const { rektKeyboard } = getREKTKeyboard();
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+
       if (!user?.config) {
         return next();
       }
 
+      // Check subscription access
+      const now = new Date();
+      const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+      const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+      const isAdmin = user.is_admin;
+
+      // If no access, show subscription message
+      if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+        const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
+        const message = wasTrialUser
+          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
+          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
+
+        await ctx.replyWithHTML(message, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "💳 Оформить подписку", callback_data: "subscribe" }
+            ]]
+          }
+        });
+        return;
+      }
+
+      const { rektKeyboard } = getREKTKeyboard();
       const rektText = getMainREKTText(user.config);
       await ctx.replyWithHTML(rektText, rektKeyboard);
     })
@@ -63,6 +145,29 @@ export default function handlers(bot: Telegraf<Context>) {
 
       if (!user?.config) {
         return next();
+      }
+
+      // Check subscription access
+      const now = new Date();
+      const hasActiveSubscription = user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now;
+      const hasActiveTrial = user.trial_expires_at && user.trial_expires_at > now;
+      const isAdmin = user.is_admin;
+
+      // If no access, show subscription message
+      if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
+        const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
+        const message = wasTrialUser
+          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
+          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
+
+        await ctx.replyWithHTML(message, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "💳 Оформить подписку", callback_data: "subscribe" }
+            ]]
+          }
+        });
+        return;
       }
 
       const { exchangeKeyboard } = getExchangeKeyboard(user?.config.exchange, user?.config.id);
@@ -139,7 +244,45 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
-      // No active subscription or trial
+      // Check if subscription has expired
+      if (user.subscription_expires_at && user.subscription_expires_at <= now) {
+        await ctx.replyWithHTML(
+          `⏰ <b>Ваша подписка окончилась</b>\n\n` +
+          `📅 Окончилась: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
+          `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
+          `💰 Стоимость: <b>$10/месяц</b>\n` +
+          `💳 Оплата принимается в криптовалюте`,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "💳 Продлить подписку", callback_data: "subscribe" }
+              ]]
+            }
+          }
+        );
+        return;
+      }
+
+      // Check if trial has expired
+      if (user.trial_expires_at && user.trial_expires_at <= now) {
+        await ctx.replyWithHTML(
+          `⏰ <b>Ваш период триал окончен</b>\n\n` +
+          `📅 Окончился: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
+          `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
+          `💰 Стоимость: <b>$10/месяц</b>\n` +
+          `💳 Оплата принимается в криптовалюте`,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "💳 Оформить подписку", callback_data: "subscribe" }
+              ]]
+            }
+          }
+        );
+        return;
+      }
+
+      // No active subscription or trial - new user
       await ctx.replyWithHTML(
         `⏰ <b>Подписка не активна</b>\n\n` +
         `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
