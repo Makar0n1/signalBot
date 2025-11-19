@@ -5,6 +5,10 @@ __tests__
 jest.config.js
 # Dependencies
 node_modules/
+src/bot/index.ts.tmp.16504.1763462424968
+src/bot/models/Binance_REKT.ts.tmp.16504.1763462264180
+TESTING_SETUP_SUMMARY.md.tmp.16504.1763465492658
+tsconfig.json.tmp.21144.1763460921015
 
 # Build output
 dist/
