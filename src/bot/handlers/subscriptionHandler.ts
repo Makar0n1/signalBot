@@ -391,11 +391,19 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
   bot.action("pay_other", async (ctx) => {
     try {
       await ctx.answerCbQuery();
+
       await ctx.editMessageText(
         `💳 <b>Другие валюты</b>\n\n` +
         `Для оплаты в других криптовалютах, пожалуйста, свяжитесь с поддержкой:\n\n` +
-        `📧 support@yourdomain.com`,
-        { parse_mode: "HTML" }
+        `📱 @mike7330`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "⬅️ Вернуться к началу", callback_data: "back_to_start" }]
+            ]
+          }
+        }
       );
     } catch (error) {
       logger.error(undefined, "Error in pay_other handler", error);
