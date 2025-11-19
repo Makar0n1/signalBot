@@ -53,7 +53,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       }
 
       // Start trial (5 minutes for testing)
-      const trialExpiry = new Date(now.getTime() + 5 * 60 * 1000);
+      const trialExpiry = new Date(now.getTime() + 30 * 60 * 1000);
       user.trial_started_at = now;
       user.trial_expires_at = trialExpiry;
       user.trial_expiry_notified = false; // Reset notification flag
