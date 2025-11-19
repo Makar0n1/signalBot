@@ -52,8 +52,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         return;
       }
 
-      // Start trial
-      const trialExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      // Start trial (5 minutes for testing)
+      const trialExpiry = new Date(now.getTime() + 5 * 60 * 1000);
       user.trial_started_at = now;
       user.trial_expires_at = trialExpiry;
       await user.save();
@@ -356,32 +356,160 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
     try {
       await ctx.answerCbQuery();
 
+      const userId = ctx.from?.id;
+      if (!userId) return;
+
+      const user = await User.findOne({ user_id: userId });
+      if (!user) {
+        await ctx.editMessageText("❌ <b>Ошибка: пользователь не найден</b>", { parse_mode: "HTML" });
+        return;
+      }
+
+      const now = new Date();
       const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
 
-      const welcomeMessage =
-        `${tc(ctx, "welcome.title")}\n\n` +
-        `${tc(ctx, "welcome.intro")}\n\n` +
-        `${tc(ctx, "welcome.features.title")}\n` +
-        `${tc(ctx, "welcome.features.oi")}\n` +
-        `${tc(ctx, "welcome.features.pump")}\n` +
-        `${tc(ctx, "welcome.features.rekt")}\n\n` +
-        `${tc(ctx, "welcome.trial.title")}\n` +
-        `${tc(ctx, "welcome.trial.text")}\n\n` +
-        `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+      // Check if user has trial/subscription history
+      const hasHistory = user.trial_started_at || user.subscription_expires_at;
 
-      await ctx.editMessageText(
-        welcomeMessage,
-        {
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
-              [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
-              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
-            ]
-          }
+      if (hasHistory) {
+        // Return to "My Subscriptions" page content
+
+        // Check if user is admin
+        if (user.is_admin) {
+          await ctx.editMessageText(
+            `👑 <b>Статус подписки: Администратор</b>\n\n` +
+            `У вас полный неограниченный доступ ко всем функциям бота!`,
+            { parse_mode: "HTML" }
+          );
+          return;
         }
-      );
+
+        // Check if user has active subscription
+        if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
+          const daysLeft = Math.ceil((user.subscription_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const canRenew = daysLeft <= 7;
+
+          await ctx.editMessageText(
+            `✅ <b>Подписка активна</b>\n\n` +
+            `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n` +
+            `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
+            `💰 Стоимость продления: <b>$${price}/месяц</b>` +
+            (canRenew ? "\n\n💡 Вы можете продлить подписку уже сейчас!" : "\n\n💡 Продление станет доступно за 7 дней до окончания."),
+            canRenew ? {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "💳 Продлить подписку", callback_data: "subscribe" }
+                ]]
+              }
+            } : { parse_mode: "HTML" }
+          );
+          return;
+        }
+
+        // Check if trial is active
+        if (user.trial_expires_at && user.trial_expires_at > now) {
+          const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
+
+          await ctx.editMessageText(
+            `🎁 <b>Триал активен</b>\n\n` +
+            `📅 Действует до: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n` +
+            `⏰ Осталось часов: <b>${hoursLeft}</b>\n\n` +
+            `💡 После окончания триала вы можете оформить подписку за <b>$${price}/месяц</b>`,
+            {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "💳 Оформить подписку", callback_data: "subscribe" }
+                ]]
+              }
+            }
+          );
+          return;
+        }
+
+        // Check if subscription has expired
+        if (user.subscription_expires_at && user.subscription_expires_at <= now) {
+          await ctx.editMessageText(
+            `⏰ <b>Ваша подписка окончилась</b>\n\n` +
+            `📅 Окончилась: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
+            `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
+            `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+            `💳 Оплата принимается в криптовалюте`,
+            {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "💳 Продлить подписку", callback_data: "subscribe" }
+                ]]
+              }
+            }
+          );
+          return;
+        }
+
+        // Check if trial has expired
+        if (user.trial_expires_at && user.trial_expires_at <= now) {
+          await ctx.editMessageText(
+            `⏰ <b>Ваш период триал окончен</b>\n\n` +
+            `📅 Окончился: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
+            `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
+            `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+            `💳 Оплата принимается в криптовалюте`,
+            {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "💳 Оформить подписку", callback_data: "subscribe" }
+                ]]
+              }
+            }
+          );
+          return;
+        }
+
+        // User has history but no active/expired subscription or trial - fallback to subscription page
+        await ctx.editMessageText(
+          `⏰ <b>Подписка не активна</b>\n\n` +
+          `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
+          `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+          `💳 Оплата принимается в криптовалюте`,
+          {
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "💳 Оформить подписку", callback_data: "subscribe" }
+              ]]
+            }
+          }
+        );
+      } else {
+        // New user without history - return to welcome page
+        const welcomeMessage =
+          `${tc(ctx, "welcome.title")}\n\n` +
+          `${tc(ctx, "welcome.intro")}\n\n` +
+          `${tc(ctx, "welcome.features.title")}\n` +
+          `${tc(ctx, "welcome.features.oi")}\n` +
+          `${tc(ctx, "welcome.features.pump")}\n` +
+          `${tc(ctx, "welcome.features.rekt")}\n\n` +
+          `${tc(ctx, "welcome.trial.title")}\n` +
+          `${tc(ctx, "welcome.trial.text")}\n\n` +
+          `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+
+        await ctx.editMessageText(
+          welcomeMessage,
+          {
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
+                [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
+                [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
+              ]
+            }
+          }
+        );
+      }
     } catch (error) {
       logger.error(undefined, "Error canceling payment", error);
     }
