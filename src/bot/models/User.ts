@@ -20,8 +20,10 @@ export interface IUser extends Document {
   // Subscription fields
   trial_started_at?: Date;
   trial_expires_at?: Date;
+  trial_expiry_notified?: boolean;
   subscription_active: boolean;
   subscription_expires_at?: Date;
+  subscription_expiry_notified?: boolean;
   is_banned: boolean;
   is_admin: boolean;
   created_at: Date;
@@ -40,8 +42,10 @@ export const UserSchema = new mongoose.Schema({
   // Subscription fields
   trial_started_at: { type: Date },
   trial_expires_at: { type: Date },
+  trial_expiry_notified: { type: Boolean, default: false },
   subscription_active: { type: Boolean, default: false },
   subscription_expires_at: { type: Date },
+  subscription_expiry_notified: { type: Boolean, default: false },
   is_banned: { type: Boolean, default: false },
   is_admin: { type: Boolean, default: false },
 }, {

@@ -291,6 +291,7 @@ class PaymentService {
 
       user.subscription_active = true;
       user.subscription_expires_at = expiryDate;
+      user.subscription_expiry_notified = false; // Reset notification flag
       await user.save();
 
       logger.info(undefined, `Subscription activated for user ${user_id}, expires at ${expiryDate}`);
