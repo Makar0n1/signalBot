@@ -71,6 +71,7 @@ changeREKTParam.hears(
   asyncWrapper(async (ctx: Context) => {
     const lang = getUserLanguage(ctx);
     const { rektKeyboard } = getREKTKeyboard(lang);
+    const userId = ctx.message?.from.id;
 
     // Add cancel button message to delete list
     ctx.session.messagesToDelete = ctx.session.messagesToDelete || [];
@@ -79,10 +80,20 @@ changeREKTParam.hears(
     // Delete all stored messages
     await deleteStoredMessages(ctx);
 
+    // Delete old settings message from DB
+    const user = await User.findOne({ user_id: userId }).populate('config');
+    if (user?.settings_message_id && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, user.settings_message_id);
+      } catch (e) {}
+    }
+
     // Get updated user config and show REKT menu
-    const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
     const rektText = getMainREKTText(user!.config, lang);
-    await ctx.replyWithHTML(rektText, rektKeyboard);
+    const sentMessage = await ctx.replyWithHTML(rektText, rektKeyboard);
+
+    // Update settings_message_id with new message
+    await User.updateOne({ user_id: userId }, { settings_message_id: sentMessage.message_id });
 
     return await ctx.scene.leave();
   })
@@ -122,15 +133,25 @@ changeREKTParam.on(
     // Delete all settings messages
     await deleteStoredMessages(ctx);
 
-    // Get updated user config and show REKT menu
+    // Delete old settings message from DB
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
+    if (user?.settings_message_id && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, user.settings_message_id);
+      } catch (e) {}
+    }
+
+    // Get updated user config and show REKT menu
     const rektText = getMainREKTText(user!.config, lang);
 
     // Send success notification that auto-deletes after 2 seconds
     const successNotif = await ctx.replyWithHTML(successMsg);
 
     // Show updated settings with REKT keyboard
-    await ctx.replyWithHTML(rektText, rektKeyboard);
+    const sentMessage = await ctx.replyWithHTML(rektText, rektKeyboard);
+
+    // Update settings_message_id with new message
+    await User.updateOne({ user_id: ctx.message?.from.id }, { settings_message_id: sentMessage.message_id });
 
     // Delete success notification after 2 seconds
     setTimeout(async () => {

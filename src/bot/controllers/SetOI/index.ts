@@ -133,6 +133,7 @@ changeOIParam.hears(
   asyncWrapper(async (ctx: Context) => {
     const lang = getUserLanguage(ctx);
     const { oiKeyboard } = getOIKeyboard(lang);
+    const userId = ctx.message?.from.id;
 
     // Add cancel button message to delete list
     ctx.session.messagesToDelete = ctx.session.messagesToDelete || [];
@@ -141,10 +142,20 @@ changeOIParam.hears(
     // Delete all stored messages
     await deleteStoredMessages(ctx);
 
+    // Delete old settings message from DB
+    const user = await User.findOne({ user_id: userId }).populate("config");
+    if (user?.settings_message_id && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, user.settings_message_id);
+      } catch (e) {}
+    }
+
     // Get updated user config and show OI menu
-    const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
     const oiText = getMainOIText(user!.config, lang);
-    await ctx.replyWithHTML(oiText, oiKeyboard);
+    const sentMessage = await ctx.replyWithHTML(oiText, oiKeyboard);
+
+    // Update settings_message_id with new message
+    await User.updateOne({ user_id: userId }, { settings_message_id: sentMessage.message_id });
 
     return await ctx.scene.leave();
   })
@@ -217,15 +228,25 @@ changeOIParam.on(
     // Delete all settings messages
     await deleteStoredMessages(ctx);
 
-    // Get updated user config and show OI menu with updated settings
+    // Delete old settings message from DB
     const user = await User.findOne({ user_id: ctx.message.from.id }).populate("config");
+    if (user?.settings_message_id && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, user.settings_message_id);
+      } catch (e) {}
+    }
+
+    // Get updated user config and show OI menu with updated settings
     const oiText = getMainOIText(user!.config, lang);
 
     // Send success notification that auto-deletes after 2 seconds
     const successNotif = await ctx.replyWithHTML(successMsg);
 
     // Show updated settings with OI keyboard
-    await ctx.replyWithHTML(oiText, oiKeyboard);
+    const sentMessage = await ctx.replyWithHTML(oiText, oiKeyboard);
+
+    // Update settings_message_id with new message
+    await User.updateOne({ user_id: ctx.message.from.id }, { settings_message_id: sentMessage.message_id });
 
     // Delete success notification after 2 seconds
     setTimeout(async () => {
