@@ -353,15 +353,10 @@ export default function handlers(bot: Telegraf<Context>) {
       const { mainKeyboard } = getMainKeyboard(lang);
       const userId = ctx.message?.from.id;
 
-      // Get user's settings message ID before clearing
+      // Get user's message IDs before clearing
       const user = await User.findOne({ user_id: userId });
       const settingsMessageId = user?.settings_message_id;
-
-      // Resume signals when returning to main menu and clear settings message ID
-      await User.updateOne({ user_id: userId }, {
-        in_settings_mode: false,
-        $unset: { settings_message_id: 1 }
-      });
+      const mainMenuMessageId = user?.main_menu_message_id;
 
       // Delete user's button press message
       try {
@@ -375,8 +370,22 @@ export default function handlers(bot: Telegraf<Context>) {
         } catch (e) {}
       }
 
+      // Delete old main menu message if exists
+      if (mainMenuMessageId && ctx.chat) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, mainMenuMessageId);
+        } catch (e) {}
+      }
+
       // Show main menu with main keyboard
-      await ctx.replyWithHTML(t("menu.bot_intro", lang), mainKeyboard);
+      const sentMessage = await ctx.replyWithHTML(t("menu.bot_intro", lang), mainKeyboard);
+
+      // Resume signals and save new main menu message ID
+      await User.updateOne({ user_id: userId }, {
+        in_settings_mode: false,
+        main_menu_message_id: sentMessage.message_id,
+        $unset: { settings_message_id: 1 }
+      });
     })
   );
 

@@ -179,41 +179,18 @@ export default function handlers(bot: Telegraf<Context>) {
           } catch (e) {}
         }, 2000);
       } else {
-        // Guest user - show welcome message with updated language after 1 second
+        // User without access - just show confirmation and delete
         await ctx.editMessageText(
           t("language.changed", "en"),
           { parse_mode: "HTML" }
         );
 
+        // Auto-delete after 2 seconds
         setTimeout(async () => {
           try {
-            const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
-            await ctx.editMessageText(
-              `${t("welcome.title", "en")}\n\n` +
-              `${t("welcome.intro", "en")}\n\n` +
-              `${t("welcome.features.title", "en")}\n` +
-              `${t("welcome.features.oi", "en")}\n` +
-              `${t("welcome.features.pump", "en")}\n` +
-              `${t("welcome.features.rekt", "en")}\n\n` +
-              `${t("welcome.trial.title", "en")}\n` +
-              `${t("welcome.trial.text", "en")}\n\n` +
-              `💰 After trial: <b>$${price}/month</b>`,
-              {
-                parse_mode: "HTML",
-                reply_markup: {
-                  inline_keyboard: [
-                    [{ text: t("btn.start_trial", "en"), callback_data: "start_trial" }],
-                    [{ text: t("btn.subscribe", "en"), callback_data: "subscribe" }],
-                    [{ text: t("btn.why_paid", "en"), callback_data: "why_paid" }],
-                    [{ text: "🌐 Language / Язык", callback_data: "select_language" }]
-                  ]
-                }
-              }
-            );
-          } catch (e) {
-            // Message might have been deleted
-          }
-        }, 1000);
+            await ctx.deleteMessage();
+          } catch (e) {}
+        }, 2000);
       }
     } catch (error) {
       console.error("Error in set_lang_en handler", error);
@@ -256,41 +233,18 @@ export default function handlers(bot: Telegraf<Context>) {
           } catch (e) {}
         }, 2000);
       } else {
-        // Guest user - show welcome message with updated language after 1 second
+        // User without access - just show confirmation and delete
         await ctx.editMessageText(
           t("language.changed", "ru"),
           { parse_mode: "HTML" }
         );
 
+        // Auto-delete after 2 seconds
         setTimeout(async () => {
           try {
-            const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
-            await ctx.editMessageText(
-              `${t("welcome.title", "ru")}\n\n` +
-              `${t("welcome.intro", "ru")}\n\n` +
-              `${t("welcome.features.title", "ru")}\n` +
-              `${t("welcome.features.oi", "ru")}\n` +
-              `${t("welcome.features.pump", "ru")}\n` +
-              `${t("welcome.features.rekt", "ru")}\n\n` +
-              `${t("welcome.trial.title", "ru")}\n` +
-              `${t("welcome.trial.text", "ru")}\n\n` +
-              `💰 После триала: <b>$${price}/месяц</b>`,
-              {
-                parse_mode: "HTML",
-                reply_markup: {
-                  inline_keyboard: [
-                    [{ text: t("btn.start_trial", "ru"), callback_data: "start_trial" }],
-                    [{ text: t("btn.subscribe", "ru"), callback_data: "subscribe" }],
-                    [{ text: t("btn.why_paid", "ru"), callback_data: "why_paid" }],
-                    [{ text: "🌐 Language / Язык", callback_data: "select_language" }]
-                  ]
-                }
-              }
-            );
-          } catch (e) {
-            // Message might have been deleted
-          }
-        }, 1000);
+            await ctx.deleteMessage();
+          } catch (e) {}
+        }, 2000);
       }
     } catch (error) {
       console.error("Error in set_lang_ru handler", error);
