@@ -146,7 +146,7 @@ export default function handlers(bot: Telegraf<Context>) {
   // Handle language change to English
   bot.action("set_lang_en", async (ctx) => {
     try {
-      await ctx.answerCbQuery();
+      await ctx.answerCbQuery(t("language.changed", "en"));
       const { User } = await import("../models/index.js");
 
       const userId = ctx.from?.id;
@@ -161,36 +161,18 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check user status and show appropriate message
       if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-        // User has access - delete inline message and show confirmation with main keyboard
+        // User has access - delete inline message and show main menu with updated keyboard
         try {
           await ctx.deleteMessage();
         } catch (e) {}
 
         const { mainKeyboard } = getMainKeyboard("en");
-        const msg = await ctx.replyWithHTML(
-          t("language.changed", "en"),
-          mainKeyboard
-        );
-
-        // Auto-delete confirmation message after 2 seconds
-        setTimeout(async () => {
-          try {
-            await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
-          } catch (e) {}
-        }, 2000);
+        await ctx.replyWithHTML(t("menu.bot_intro", "en"), mainKeyboard);
       } else {
-        // User without access - just show confirmation and delete
-        await ctx.editMessageText(
-          t("language.changed", "en"),
-          { parse_mode: "HTML" }
-        );
-
-        // Auto-delete after 2 seconds
-        setTimeout(async () => {
-          try {
-            await ctx.deleteMessage();
-          } catch (e) {}
-        }, 2000);
+        // User without access - just delete inline message
+        try {
+          await ctx.deleteMessage();
+        } catch (e) {}
       }
     } catch (error) {
       console.error("Error in set_lang_en handler", error);
@@ -200,7 +182,7 @@ export default function handlers(bot: Telegraf<Context>) {
   // Handle language change to Russian
   bot.action("set_lang_ru", async (ctx) => {
     try {
-      await ctx.answerCbQuery();
+      await ctx.answerCbQuery(t("language.changed", "ru"));
       const { User } = await import("../models/index.js");
 
       const userId = ctx.from?.id;
@@ -215,36 +197,18 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check user status and show appropriate message
       if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-        // User has access - delete inline message and show confirmation with main keyboard
+        // User has access - delete inline message and show main menu with updated keyboard
         try {
           await ctx.deleteMessage();
         } catch (e) {}
 
         const { mainKeyboard } = getMainKeyboard("ru");
-        const msg = await ctx.replyWithHTML(
-          t("language.changed", "ru"),
-          mainKeyboard
-        );
-
-        // Auto-delete confirmation message after 2 seconds
-        setTimeout(async () => {
-          try {
-            await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
-          } catch (e) {}
-        }, 2000);
+        await ctx.replyWithHTML(t("menu.bot_intro", "ru"), mainKeyboard);
       } else {
-        // User without access - just show confirmation and delete
-        await ctx.editMessageText(
-          t("language.changed", "ru"),
-          { parse_mode: "HTML" }
-        );
-
-        // Auto-delete after 2 seconds
-        setTimeout(async () => {
-          try {
-            await ctx.deleteMessage();
-          } catch (e) {}
-        }, 2000);
+        // User without access - just delete inline message
+        try {
+          await ctx.deleteMessage();
+        } catch (e) {}
       }
     } catch (error) {
       console.error("Error in set_lang_ru handler", error);
