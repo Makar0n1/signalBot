@@ -6,6 +6,7 @@ import { User } from "../models";
 import logger from "../utils/logger";
 import { tc, getUserLanguage, t } from "../utils/i18n";
 import userCacheService from "../services/user-cache.service";
+import subscriptionNotifierService from "../services/subscription-notifier.service";
 
 export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
@@ -347,6 +348,13 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       const status = await paymentService.getPaymentStatus(paymentId);
 
       if (status.payment_status === "finished" || status.payment_status === "confirmed") {
+        const userId = ctx.from?.id;
+
+        // Unpin and delete expiry message if present
+        if (userId) {
+          await subscriptionNotifierService.unpinExpiryMessage(userId);
+        }
+
         // Delete the payment message
         try {
           await ctx.deleteMessage();

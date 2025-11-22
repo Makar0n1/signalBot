@@ -90,21 +90,22 @@ class SubscriptionNotifierService {
 
     try {
       const user = await User.findOne({ user_id: userId });
-      const lang = user?.language_code?.startsWith('ru') ? 'ru' : 'en';
+      const lang = user?.preferred_language || 'en';
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
 
       const message = lang === 'ru'
         ? `⏰ <b>Ваша подписка окончилась</b>\n\n` +
           `📅 Окончилась: <code>${expiredAt.toLocaleString('ru-RU')}</code>\n\n` +
           `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
-          `💰 Стоимость: <b>$25/месяц</b>\n` +
+          `💰 Стоимость: <b>$${price}/месяц</b>\n` +
           `💳 Оплата принимается в криптовалюте`
         : `⏰ <b>Your subscription has expired</b>\n\n` +
           `📅 Expired: <code>${expiredAt.toLocaleString('en-US')}</code>\n\n` +
           `Please renew your subscription to continue receiving signals.\n\n` +
-          `💰 Price: <b>$25/month</b>\n` +
+          `💰 Price: <b>$${price}/month</b>\n` +
           `💳 Cryptocurrency payment accepted`;
 
-      await this.bot.telegram.sendMessage(userId, message, {
+      const sentMessage = await this.bot.telegram.sendMessage(userId, message, {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [[
@@ -112,6 +113,15 @@ class SubscriptionNotifierService {
           ]],
         },
       });
+
+      // Pin the expiry message
+      try {
+        await this.bot.telegram.pinChatMessage(userId, sentMessage.message_id, { disable_notification: true });
+        // Save pinned message ID for later unpinning
+        await User.updateOne({ user_id: userId }, { pinned_expiry_message_id: sentMessage.message_id });
+      } catch (pinError) {
+        logger.warn(undefined, `Could not pin expiry message for user ${userId}`);
+      }
 
       logger.info(undefined, `Subscription expired notification sent to user ${userId}`);
     } catch (error: any) {
@@ -127,21 +137,22 @@ class SubscriptionNotifierService {
 
     try {
       const user = await User.findOne({ user_id: userId });
-      const lang = user?.language_code?.startsWith('ru') ? 'ru' : 'en';
+      const lang = user?.preferred_language || 'en';
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
 
       const message = lang === 'ru'
-        ? `⏰ <b>Ваш период триал окончен</b>\n\n` +
+        ? `⏰ <b>Ваш триал период окончен</b>\n\n` +
           `📅 Окончился: <code>${expiredAt.toLocaleString('ru-RU')}</code>\n\n` +
-          `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
-          `💰 Стоимость: <b>$25/месяц</b>\n` +
+          `Пожалуйста, оформите подписку, чтобы продолжить получать сигналы.\n\n` +
+          `💰 Стоимость: <b>$${price}/месяц</b>\n` +
           `💳 Оплата принимается в криптовалюте`
         : `⏰ <b>Your trial period has ended</b>\n\n` +
           `📅 Ended: <code>${expiredAt.toLocaleString('en-US')}</code>\n\n` +
           `Please purchase a subscription to continue receiving signals.\n\n` +
-          `💰 Price: <b>$25/month</b>\n` +
+          `💰 Price: <b>$${price}/month</b>\n` +
           `💳 Cryptocurrency payment accepted`;
 
-      await this.bot.telegram.sendMessage(userId, message, {
+      const sentMessage = await this.bot.telegram.sendMessage(userId, message, {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [[
@@ -150,9 +161,41 @@ class SubscriptionNotifierService {
         },
       });
 
+      // Pin the expiry message
+      try {
+        await this.bot.telegram.pinChatMessage(userId, sentMessage.message_id, { disable_notification: true });
+        // Save pinned message ID for later unpinning
+        await User.updateOne({ user_id: userId }, { pinned_expiry_message_id: sentMessage.message_id });
+      } catch (pinError) {
+        logger.warn(undefined, `Could not pin trial expiry message for user ${userId}`);
+      }
+
       logger.info(undefined, `Trial expired notification sent to user ${userId}`);
     } catch (error: any) {
       logger.error(undefined, `Error sending trial expired notification to user ${userId}`, error.message);
+    }
+  }
+
+  /**
+   * Unpin and delete expiry message after subscription renewal
+   */
+  async unpinExpiryMessage(userId: number) {
+    if (!this.bot) return;
+
+    try {
+      const user = await User.findOne({ user_id: userId });
+      if (user?.pinned_expiry_message_id) {
+        try {
+          await this.bot.telegram.unpinChatMessage(userId, { message_id: user.pinned_expiry_message_id });
+          await this.bot.telegram.deleteMessage(userId, user.pinned_expiry_message_id);
+        } catch (e) {
+          // Message might already be deleted
+        }
+        await User.updateOne({ user_id: userId }, { $unset: { pinned_expiry_message_id: 1 } });
+        logger.info(undefined, `Expiry message unpinned and deleted for user ${userId}`);
+      }
+    } catch (error: any) {
+      logger.error(undefined, `Error unpinning expiry message for user ${userId}`, error.message);
     }
   }
 

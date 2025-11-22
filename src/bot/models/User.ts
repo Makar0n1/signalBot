@@ -29,6 +29,10 @@ export interface IUser extends Document {
   is_admin: boolean;
   created_at: Date;
   updated_at: Date;
+
+  // UI state fields
+  in_settings_mode?: boolean;
+  pinned_expiry_message_id?: number;
 }
 
 export const UserSchema = new mongoose.Schema({
@@ -50,6 +54,10 @@ export const UserSchema = new mongoose.Schema({
   subscription_expiry_notified: { type: Boolean, default: false },
   is_banned: { type: Boolean, default: false },
   is_admin: { type: Boolean, default: false },
+
+  // UI state fields
+  in_settings_mode: { type: Boolean, default: false },
+  pinned_expiry_message_id: { type: Number },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

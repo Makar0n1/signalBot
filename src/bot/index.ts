@@ -24,6 +24,7 @@ import { Admin } from "./models";
 import subscriptionNotifier from "./services/subscription-notifier.service.js";
 import paymentService from "./services/payment.service";
 import telegramQueueService from "./services/telegram-queue.service.js";
+import signalCleanupService from "./services/signal-cleanup.service.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -129,6 +130,9 @@ mongoose
 
     // Initialize Telegram queue service for rate-limited message sending
     telegramQueueService.initialize(bot);
+
+    // Initialize signal cleanup service for auto-deleting signals after 24 hours
+    signalCleanupService.initialize(bot);
 
     // ByBitService = ByBitServiceCl.getByBitService(Trackable, bot);
     // BYBIT_API = ByBitWebSocketApiService.getWebsocketClient();

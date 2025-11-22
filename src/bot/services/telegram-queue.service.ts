@@ -1,6 +1,8 @@
 import { Telegraf, Context } from "telegraf";
 import logger from "../utils/logger";
 import UserService from "./user.service";
+import { User } from "../models";
+import signalCleanupService from "./signal-cleanup.service";
 
 interface QueuedMessage {
   userId: string;
@@ -142,8 +144,23 @@ class TelegramQueueService {
       throw new Error("Bot not initialized");
     }
 
-    await this.bot.telegram.sendMessage(msg.userId, msg.message, msg.options);
+    // Check if user is in settings mode - skip signal if so
+    const user = await User.findOne({ user_id: Number(msg.userId) });
+    if (user?.in_settings_mode) {
+      logger.debug(undefined, `User ${msg.userId} is in settings mode, skipping signal`);
+      msg.resolve(false);
+      return;
+    }
+
+    const sentMessage = await this.bot.telegram.sendMessage(msg.userId, msg.message, msg.options);
     msg.resolve(true);
+
+    // Track signal for auto-deletion after 24 hours
+    await signalCleanupService.trackSignal(
+      Number(msg.userId),
+      sentMessage.chat.id,
+      sentMessage.message_id
+    );
 
     logger.debug(undefined, `Message sent to user ${msg.userId}, queue sizes: high=${this.highPriorityQueue.length}, normal=${this.normalQueue.length}`);
   }

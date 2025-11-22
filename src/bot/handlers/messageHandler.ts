@@ -82,6 +82,9 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
+      // Pause signals while in settings
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
+
       const { oiKeyboard } = getOIKeyboard(lang);
       const oiText = getMainOIText(user.config, lang);
       await ctx.replyWithHTML(oiText, oiKeyboard);
@@ -113,6 +116,9 @@ export default function handlers(bot: Telegraf<Context>) {
         await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
+
+      // Pause signals while in settings
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
 
       const { pumpKeyboard } = getPUMPKeyboard(lang);
       const pumpText = getMainPumpText(user.config, lang);
@@ -146,6 +152,9 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
+      // Pause signals while in settings
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
+
       const { rektKeyboard } = getREKTKeyboard(lang);
       const rektText = getMainREKTText(user.config, lang);
       await ctx.replyWithHTML(rektText, rektKeyboard);
@@ -176,6 +185,9 @@ export default function handlers(bot: Telegraf<Context>) {
         await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
+
+      // Pause signals while in settings
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
 
       const { exchangeKeyboard } = getExchangeKeyboard(user?.config.exchange, user?.config.id, lang);
 
@@ -209,16 +221,7 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check if user is admin
       if (user.is_admin) {
-        await ctx.replyWithHTML(
-          t("subscription.admin_status", lang),
-          {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: t("btn.language", lang), callback_data: "select_language" }
-              ]]
-            }
-          }
-        );
+        await ctx.replyWithHTML(t("subscription.admin_status", lang));
         return;
       }
 
@@ -234,8 +237,8 @@ export default function handlers(bot: Telegraf<Context>) {
           (canRenew ? `\n\n${t("subscription.renew_now", lang)}` : `\n\n${t("subscription.renew_available_in_7_days", lang)}`);
 
         const buttons = canRenew
-          ? [[{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }], [{ text: t("btn.language", lang), callback_data: "select_language" }]]
-          : [[{ text: t("btn.language", lang), callback_data: "select_language" }]];
+          ? [[{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }]]
+          : [];
 
         await ctx.replyWithHTML(message, {
           reply_markup: { inline_keyboard: buttons }
@@ -255,8 +258,7 @@ export default function handlers(bot: Telegraf<Context>) {
           {
             reply_markup: {
               inline_keyboard: [
-                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
-                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }]
               ]
             }
           }
@@ -275,8 +277,7 @@ export default function handlers(bot: Telegraf<Context>) {
           {
             reply_markup: {
               inline_keyboard: [
-                [{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }],
-                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+                [{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }]
               ]
             }
           }
@@ -295,8 +296,7 @@ export default function handlers(bot: Telegraf<Context>) {
           {
             reply_markup: {
               inline_keyboard: [
-                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
-                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }]
               ]
             }
           }
@@ -313,8 +313,7 @@ export default function handlers(bot: Telegraf<Context>) {
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
-              [{ text: t("btn.language", lang), callback_data: "select_language" }]
+              [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }]
             ]
           }
         }
@@ -329,6 +328,9 @@ export default function handlers(bot: Telegraf<Context>) {
     asyncWrapper(async (ctx: Context) => {
       const lang = getUserLanguage(ctx);
       const { mainKeyboard } = getMainKeyboard(lang);
+
+      // Resume signals when returning to main menu
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: false });
 
       // Delete user's button press message
       try {
@@ -419,6 +421,8 @@ export default function handlers(bot: Telegraf<Context>) {
     isUser,
     deleteMessageNext,
     asyncWrapper(async (ctx: Context) => {
+      // Resume signals when cancelling settings
+      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: false });
       return await ctx.scene.leave();
     })
   );
