@@ -19,6 +19,9 @@ export const Binance_REKT_Shema = new mongoose.Schema({
 
 // Добавляем составной индекс для symbol и user
 Binance_REKT_Shema.index({ symbol: 1, user: 1 }, { unique: true });
+// Дополнительные индексы для оптимизации
+Binance_REKT_Shema.index({ user: 1 });                                   // Для populate и удаления записей пользователя
+Binance_REKT_Shema.index({ h24_signal_count_liq: 1 });                   // Для clearTickersCounts
 
 const Binance_REKT = mongoose.model<IBinance_REKT>("Binance_REKT", Binance_REKT_Shema);
 export default Binance_REKT;

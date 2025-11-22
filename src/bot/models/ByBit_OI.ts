@@ -32,6 +32,10 @@ export const ByBit_OI_Schema = new mongoose.Schema({
 
 // Добавляем составной индекс для symbol и user
 ByBit_OI_Schema.index({ symbol: 1, user: 1 }, { unique: true });
+// Дополнительные индексы для оптимизации
+ByBit_OI_Schema.index({ user: 1 });                                      // Для populate и удаления записей пользователя
+ByBit_OI_Schema.index({ h24_signal_count_growth: 1 });                   // Для clearTickersCounts
+ByBit_OI_Schema.index({ h24_signal_count_recession: 1 });                // Для clearTickersCounts
 
 const ByBit_OI = mongoose.model<IByBit_OI>("ByBit_OI", ByBit_OI_Schema);
 export default ByBit_OI;

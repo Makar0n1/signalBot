@@ -2,6 +2,9 @@ import { Context } from "telegraf";
 
 export type Language = "ru" | "en";
 
+// Cache for user language preferences
+const userLanguageCache: Map<number, Language> = new Map();
+
 interface Translations {
   [key: string]: {
     ru: string;
@@ -171,21 +174,65 @@ const translations: Translations = {
     ru: "❌ <b>Ошибка при создании пользователя</b>",
     en: "❌ <b>Error creating user</b>"
   },
+
+  // Language selection
+  "language.select": {
+    ru: "🌐 Выберите язык:",
+    en: "🌐 Select language:"
+  },
+  "language.changed": {
+    ru: "✅ Язык изменен на русский",
+    en: "✅ Language changed to English"
+  },
+  "btn.language": {
+    ru: "🌐 Язык/Lang",
+    en: "🌐 Language/Язык"
+  },
+  "btn.lang_ru": {
+    ru: "🇷🇺 Русский",
+    en: "🇷🇺 Russian"
+  },
+  "btn.lang_en": {
+    ru: "🇺🇸 Английский",
+    en: "🇺🇸 English"
+  },
 };
 
 /**
+ * Set user language in cache
+ */
+export function setUserLanguage(userId: number, lang: Language): void {
+  userLanguageCache.set(userId, lang);
+}
+
+/**
+ * Get user language from cache
+ */
+export function getCachedUserLanguage(userId: number): Language | undefined {
+  return userLanguageCache.get(userId);
+}
+
+/**
  * Detect user language from Telegram context
+ * Uses cached language if available, otherwise defaults to English
  */
 export function getUserLanguage(ctx: Context): Language {
-  // Try to get language from user's Telegram settings
-  const langCode = ctx.from?.language_code;
+  const userId = ctx.from?.id;
 
-  // If Russian, return ru, otherwise default to en
-  if (langCode && langCode.startsWith("ru")) {
-    return "ru";
+  // Check cache first
+  if (userId && userLanguageCache.has(userId)) {
+    return userLanguageCache.get(userId)!;
   }
 
+  // Default to English
   return "en";
+}
+
+/**
+ * Get user language by userId (for use outside of context)
+ */
+export function getUserLanguageById(userId: number): Language {
+  return userLanguageCache.get(userId) || "en";
 }
 
 /**
@@ -210,4 +257,4 @@ export function tc(ctx: Context, key: string): string {
   return t(key, lang);
 }
 
-export default { t, tc, getUserLanguage };
+export default { t, tc, getUserLanguage, setUserLanguage, getCachedUserLanguage, getUserLanguageById };

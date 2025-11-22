@@ -81,6 +81,11 @@ class UserService {
     return this.getUsersWithoutSymbol(symbol, "binance_rekts");
   }
 
+  // Batch версия: получение пользователей без записей Binance PUMP для нескольких символов
+  public async getBinancePumpRecordsForUsersWithoutSymbols(symbols: string[]): Promise<{ user: IUser; missingSymbols: string[] }[]> {
+    return this.getUsersWithoutSymbols(symbols, "binance_pumps");
+  }
+
   // Получение всех пользователей у которых есть записи в binance_pumps с даннм символом
   public async getBinancePumpRecordsForUsersWithSymbol(symbol: string): Promise<IUserWithConfig[]> {
     return this.getUsersWithSymbolAndConfig(symbol, "binance_pumps");
@@ -94,6 +99,16 @@ class UserService {
   // Получение всех пользователей у которых есть записи в bybit_ois с даннм символом
   public async getUsersWithoutByBitOISymbol(symbol: string): Promise<IUser[]> {
     return this.getUsersWithoutSymbol(symbol, "bybit_ois");
+  }
+
+  // Batch версия: получение пользователей без записей для нескольких символов сразу
+  public async getUsersWithoutByBitPumpSymbols(symbols: string[]): Promise<{ user: IUser; missingSymbols: string[] }[]> {
+    return this.getUsersWithoutSymbols(symbols, "bybit_pumps");
+  }
+
+  // Batch версия: получение пользователей без записей OI для нескольких символов сразу
+  public async getUsersWithoutByBitOISymbols(symbols: string[]): Promise<{ user: IUser; missingSymbols: string[] }[]> {
+    return this.getUsersWithoutSymbols(symbols, "bybit_ois");
   }
 
   // Вспомогательный метод для получения пользователей без записи с данным символом
@@ -125,6 +140,50 @@ class UserService {
       return users;
     } catch (error) {
       throw new Error(`Ошибка при получении пользователей без записи в ${collection} по символу: ${symbol}, ${error}`);
+    }
+  }
+
+  // Batch версия: получение пользователей без записей для нескольких символов сразу
+  // Возвращает массив { user, missingSymbols } для каждого пользователя
+  private async getUsersWithoutSymbols(symbols: string[], collection: string): Promise<{ user: IUser; missingSymbols: string[] }[]> {
+    try {
+      const users = await this.User.aggregate([
+        {
+          $lookup: {
+            from: collection,
+            localField: "_id",
+            foreignField: "user",
+            as: "records",
+          },
+        },
+        {
+          $addFields: {
+            existingSymbols: "$records.symbol",
+            missingSymbols: {
+              $filter: {
+                input: symbols,
+                as: "symbol",
+                cond: { $not: { $in: ["$$symbol", "$records.symbol"] } },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            "missingSymbols.0": { $exists: true }, // Только пользователи с хотя бы 1 отсутствующим символом
+          },
+        },
+        {
+          $project: {
+            records: 0,
+            existingSymbols: 0,
+          },
+        },
+      ]);
+
+      return users.map((u: IUser & { missingSymbols: string[] }) => ({ user: u, missingSymbols: u.missingSymbols }));
+    } catch (error) {
+      throw new Error(`Ошибка при получении пользователей без записей в ${collection}: ${error}`);
     }
   }
 

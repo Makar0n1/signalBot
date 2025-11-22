@@ -5,6 +5,7 @@ import paymentService from "../services/payment.service";
 import { User } from "../models";
 import logger from "../utils/logger";
 import { tc, getUserLanguage, t } from "../utils/i18n";
+import userCacheService from "../services/user-cache.service";
 
 export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
@@ -59,6 +60,9 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       user.trial_expiry_notified = false; // Reset notification flag
       await user.save();
 
+      // Инвалидировать кэш пользователя после старта триала
+      await userCacheService.invalidate(userId);
+
       const { mainKeyboard } = getMainKeyboard();
 
       const trialMessage = `${tc(ctx, "trial.activated.title")}\n\n` +
@@ -83,7 +87,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       logger.info(undefined, `Trial started for user ${userId}`);
     } catch (error) {
       logger.error(undefined, "Error starting trial", error);
-      await ctx.answerCbQuery("❌ Произошла ошибка");
+      const lang = getUserLanguage(ctx);
+      await ctx.answerCbQuery(lang === 'ru' ? "❌ Произошла ошибка" : "❌ An error occurred");
     }
   });
 
@@ -139,6 +144,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       await ctx.answerCbQuery();
 
       const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
+      const lang = getUserLanguage(ctx);
 
       const welcomeMessage =
         `${tc(ctx, "welcome.title")}\n\n` +
@@ -149,7 +155,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         `${tc(ctx, "welcome.features.rekt")}\n\n` +
         `${tc(ctx, "welcome.trial.title")}\n` +
         `${tc(ctx, "welcome.trial.text")}\n\n` +
-        `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+        `💰 ${lang === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
 
       await ctx.editMessageText(
         welcomeMessage,
@@ -159,7 +165,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
             inline_keyboard: [
               [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
               [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
-              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
+              [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }],
+              [{ text: "🌐 Language / Язык", callback_data: "select_language" }]
             ]
           }
         }
@@ -179,31 +186,40 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       const user = await User.findOne({ user_id: userId });
       if (!user) {
-        await ctx.editMessageText("❌ <b>Ошибка: пользователь не найден</b>", { parse_mode: "HTML" });
+        await ctx.editMessageText(tc(ctx, "error.user_not_found"), { parse_mode: "HTML" });
         return;
       }
 
       const now = new Date();
+      const lang = getUserLanguage(ctx);
+      const locale = lang === 'ru' ? 'ru-RU' : 'en-US';
 
       // Check if user already has active subscription with more than 7 days remaining
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
         const daysLeft = Math.ceil((user.subscription_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
         if (daysLeft > 7) {
-          await ctx.editMessageText(
-            `✅ <b>У вас уже есть активная подписка!</b>\n\n` +
-            `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n` +
-            `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
-            `💡 Продление подписки станет доступно за 7 дней до окончания текущей.`,
-            { parse_mode: "HTML" }
-          );
+          const alreadyActiveMsg = lang === 'ru'
+            ? `✅ <b>У вас уже есть активная подписка!</b>\n\n` +
+              `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
+              `💡 Продление подписки станет доступно за 7 дней до окончания текущей.`
+            : `✅ <b>You already have an active subscription!</b>\n\n` +
+              `📅 Valid until: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Days left: <b>${daysLeft}</b>\n\n` +
+              `💡 Renewal will be available 7 days before the current subscription expires.`;
+
+          await ctx.editMessageText(alreadyActiveMsg, { parse_mode: "HTML" });
           return;
         }
       }
 
+      const subscribeTitle = lang === 'ru' ? `💳 <b>Оформление подписки</b>\n\nВыберите валюту для оплаты:` : `💳 <b>Subscribe</b>\n\nSelect payment currency:`;
+      const otherCurrency = lang === 'ru' ? "💵 Другая валюта" : "💵 Other Currency";
+      const cancelBtn = lang === 'ru' ? "❌ Отмена" : "❌ Cancel";
+
       await ctx.editMessageText(
-        `💳 <b>Оформление подписки</b>\n\n` +
-        `Выберите валюту для оплаты:`,
+        subscribeTitle,
         {
           parse_mode: "HTML",
           reply_markup: {
@@ -217,10 +233,10 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
                 { text: "₮ USDT (ERC20)", callback_data: "pay_usdt_erc20" }
               ],
               [
-                { text: "💵 Другая валюта", callback_data: "pay_other" }
+                { text: otherCurrency, callback_data: "pay_other" }
               ],
               [
-                { text: "❌ Отмена", callback_data: "cancel_payment" }
+                { text: cancelBtn, callback_data: "cancel_payment" }
               ]
             ]
           }
@@ -228,7 +244,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       );
     } catch (error) {
       logger.error(undefined, "Error in subscribe handler", error);
-      await ctx.answerCbQuery("❌ Произошла ошибка");
+      const lang = getUserLanguage(ctx);
+      await ctx.answerCbQuery(lang === 'ru' ? "❌ Произошла ошибка" : "❌ An error occurred");
     }
   });
 
@@ -243,7 +260,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
   Object.entries(paymentHandlers).forEach(([action, payCurrency]) => {
     bot.action(action, async (ctx) => {
       try {
-        await ctx.answerCbQuery("⏳ Создаём платёж...");
+        const lang = getUserLanguage(ctx);
+        await ctx.answerCbQuery(lang === 'ru' ? "⏳ Создаём платёж..." : "⏳ Creating payment...");
 
         const userId = ctx.from?.id;
         if (!userId) return;
@@ -258,22 +276,31 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
           pay_currency: payCurrency
         });
 
+        const paymentInfoMsg = lang === 'ru'
+          ? `💳 <b>Платёжная информация</b>\n\n` +
+            `💰 Сумма: <code>${payment.pay_amount} ${payment.pay_currency.toUpperCase()}</code>\n` +
+            `📬 Адрес для оплаты:\n<code>${payment.pay_address}</code>\n\n` +
+            `⚠️ <b>Важно:</b> Отправьте точную сумму на указанный адрес. После подтверждения транзакции ваша подписка будет активирована автоматически.\n\n` +
+            `⏰ Время на оплату: 60 минут\n\n` +
+            `🔍 ID платежа: <code>${payment.payment_id}</code>`
+          : `💳 <b>Payment Information</b>\n\n` +
+            `💰 Amount: <code>${payment.pay_amount} ${payment.pay_currency.toUpperCase()}</code>\n` +
+            `📬 Payment address:\n<code>${payment.pay_address}</code>\n\n` +
+            `⚠️ <b>Important:</b> Send the exact amount to the specified address. Your subscription will be activated automatically after transaction confirmation.\n\n` +
+            `⏰ Payment time: 60 minutes\n\n` +
+            `🔍 Payment ID: <code>${payment.payment_id}</code>`;
+
         await ctx.editMessageText(
-          `💳 <b>Платёжная информация</b>\n\n` +
-          `💰 Сумма: <code>${payment.pay_amount} ${payment.pay_currency.toUpperCase()}</code>\n` +
-          `📬 Адрес для оплаты:\n<code>${payment.pay_address}</code>\n\n` +
-          `⚠️ <b>Важно:</b> Отправьте точную сумму на указанный адрес. После подтверждения транзакции ваша подписка будет активирована автоматически.\n\n` +
-          `⏰ Время на оплату: 60 минут\n\n` +
-          `🔍 ID платежа: <code>${payment.payment_id}</code>`,
+          paymentInfoMsg,
           {
             parse_mode: "HTML",
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: "✅ Я оплатил", callback_data: `check_payment_${payment.payment_id}` }
+                  { text: lang === 'ru' ? "✅ Я оплатил" : "✅ I Paid", callback_data: `check_payment_${payment.payment_id}` }
                 ],
                 [
-                  { text: "❌ Отменить", callback_data: "cancel_payment" }
+                  { text: lang === 'ru' ? "❌ Отменить" : "❌ Cancel", callback_data: "cancel_payment" }
                 ]
               ]
             }
@@ -283,18 +310,25 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         logger.info(undefined, `Payment created for user ${userId}: ${payment.payment_id}`);
       } catch (error) {
         logger.error(undefined, "Error creating payment", error);
+        const lang = getUserLanguage(ctx);
+
+        const errorMsg = lang === 'ru'
+          ? `❌ <b>Ошибка при создании платежа</b>\n\n` +
+            `К сожалению, не удалось создать платёж. Пожалуйста, попробуйте позже.\n\n` +
+            `Вы можете выбрать другой способ оплаты или связаться с поддержкой.`
+          : `❌ <b>Payment Creation Error</b>\n\n` +
+            `Unfortunately, the payment could not be created. Please try again later.\n\n` +
+            `You can choose a different payment method or contact support.`;
 
         // Return to start menu on error
         await ctx.editMessageText(
-          `❌ <b>Ошибка при создании платежа</b>\n\n` +
-          `К сожалению, не удалось создать платёж. Пожалуйста, попробуйте позже.\n\n` +
-          `Вы можете выбрать другой способ оплаты или связаться с поддержкой.`,
+          errorMsg,
           {
             parse_mode: "HTML",
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🔄 Попробовать снова", callback_data: "subscribe" }],
-                [{ text: "⬅️ Вернуться к началу", callback_data: "back_to_start" }]
+                [{ text: lang === 'ru' ? "🔄 Попробовать снова" : "🔄 Try Again", callback_data: "subscribe" }],
+                [{ text: lang === 'ru' ? "⬅️ Вернуться к началу" : "⬅️ Back to Start", callback_data: "back_to_start" }]
               ]
             }
           }
@@ -306,7 +340,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
   // Handle payment check
   bot.action(/check_payment_(.+)/, async (ctx) => {
     try {
-      await ctx.answerCbQuery("⏳ Проверяем статус платежа...");
+      const lang = getUserLanguage(ctx);
+      await ctx.answerCbQuery(lang === 'ru' ? "⏳ Проверяем статус платежа..." : "⏳ Checking payment status...");
 
       const paymentId = ctx.match[1];
       const status = await paymentService.getPaymentStatus(paymentId);
@@ -317,17 +352,14 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
           await ctx.deleteMessage();
         } catch (e) {
           // If delete fails, try to edit the message
-          await ctx.editMessageText(
-            `✅ <b>Платёж подтверждён!</b>\n\n` +
-            `Спасибо за покупку подписки! Ваш доступ к боту активирован на 30 дней.\n\n` +
-            `🎉 Приятного использования!`,
-            { parse_mode: "HTML" }
-          );
+          const confirmedMsg = lang === 'ru'
+            ? `✅ <b>Платёж подтверждён!</b>\n\nСпасибо за покупку подписки! Ваш доступ к боту активирован на 30 дней.\n\n🎉 Приятного использования!`
+            : `✅ <b>Payment Confirmed!</b>\n\nThank you for purchasing a subscription! Your bot access is activated for 30 days.\n\n🎉 Enjoy!`;
+          await ctx.editMessageText(confirmedMsg, { parse_mode: "HTML" });
         }
 
         // Send success message with main keyboard
         const { mainKeyboard } = getMainKeyboard();
-        const lang = getUserLanguage(ctx);
 
         await ctx.replyWithHTML(
           `✅ <b>${lang === 'ru' ? 'Платёж получен!' : 'Payment received!'}</b>\n\n` +
@@ -337,18 +369,19 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         );
       } else if (status.payment_status === "waiting" || status.payment_status === "confirming") {
         await ctx.answerCbQuery(
-          "⏳ Платёж ещё не подтверждён. Пожалуйста, подождите.",
+          lang === 'ru' ? "⏳ Платёж ещё не подтверждён. Пожалуйста, подождите." : "⏳ Payment not confirmed yet. Please wait.",
           { show_alert: true }
         );
       } else {
         await ctx.answerCbQuery(
-          `❌ Статус платежа: ${status.payment_status}`,
+          `❌ ${lang === 'ru' ? 'Статус платежа' : 'Payment status'}: ${status.payment_status}`,
           { show_alert: true }
         );
       }
     } catch (error) {
       logger.error(undefined, "Error checking payment", error);
-      await ctx.answerCbQuery("❌ Ошибка при проверке платежа");
+      const lang = getUserLanguage(ctx);
+      await ctx.answerCbQuery(lang === 'ru' ? "❌ Ошибка при проверке платежа" : "❌ Error checking payment");
     }
   });
 
@@ -362,12 +395,14 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       const user = await User.findOne({ user_id: userId });
       if (!user) {
-        await ctx.editMessageText("❌ <b>Ошибка: пользователь не найден</b>", { parse_mode: "HTML" });
+        await ctx.editMessageText(tc(ctx, "error.user_not_found"), { parse_mode: "HTML" });
         return;
       }
 
       const now = new Date();
       const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
+      const lang = getUserLanguage(ctx);
+      const locale = lang === 'ru' ? 'ru-RU' : 'en-US';
 
       // Check if user has trial/subscription history
       const hasHistory = user.trial_started_at || user.subscription_expires_at;
@@ -378,8 +413,9 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         // Check if user is admin
         if (user.is_admin) {
           await ctx.editMessageText(
-            `👑 <b>Статус подписки: Администратор</b>\n\n` +
-            `У вас полный неограниченный доступ ко всем функциям бота!`,
+            lang === 'ru'
+              ? `👑 <b>Статус подписки: Администратор</b>\n\nУ вас полный неограниченный доступ ко всем функциям бота!`
+              : `👑 <b>Subscription Status: Administrator</b>\n\nYou have full unlimited access to all bot features!`,
             { parse_mode: "HTML" }
           );
           return;
@@ -390,17 +426,25 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
           const daysLeft = Math.ceil((user.subscription_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           const canRenew = daysLeft <= 7;
 
+          const activeSubMsg = lang === 'ru'
+            ? `✅ <b>Подписка активна</b>\n\n` +
+              `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
+              `💰 Стоимость продления: <b>$${price}/месяц</b>` +
+              (canRenew ? "\n\n💡 Вы можете продлить подписку уже сейчас!" : "\n\n💡 Продление станет доступно за 7 дней до окончания.")
+            : `✅ <b>Subscription Active</b>\n\n` +
+              `📅 Valid until: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Days left: <b>${daysLeft}</b>\n\n` +
+              `💰 Renewal price: <b>$${price}/month</b>` +
+              (canRenew ? "\n\n💡 You can renew your subscription now!" : "\n\n💡 Renewal will be available 7 days before expiration.");
+
           await ctx.editMessageText(
-            `✅ <b>Подписка активна</b>\n\n` +
-            `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n` +
-            `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
-            `💰 Стоимость продления: <b>$${price}/месяц</b>` +
-            (canRenew ? "\n\n💡 Вы можете продлить подписку уже сейчас!" : "\n\n💡 Продление станет доступно за 7 дней до окончания."),
+            activeSubMsg,
             canRenew ? {
               parse_mode: "HTML",
               reply_markup: {
                 inline_keyboard: [[
-                  { text: "💳 Продлить подписку", callback_data: "subscribe" }
+                  { text: lang === 'ru' ? "💳 Продлить подписку" : "💳 Renew Subscription", callback_data: "subscribe" }
                 ]]
               }
             } : { parse_mode: "HTML" }
@@ -412,16 +456,23 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         if (user.trial_expires_at && user.trial_expires_at > now) {
           const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
 
+          const trialActiveMsg = lang === 'ru'
+            ? `🎁 <b>Триал активен</b>\n\n` +
+              `📅 Действует до: <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Осталось часов: <b>${hoursLeft}</b>\n\n` +
+              `💡 После окончания триала вы можете оформить подписку за <b>$${price}/месяц</b>`
+            : `🎁 <b>Trial Active</b>\n\n` +
+              `📅 Valid until: <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n` +
+              `⏰ Hours left: <b>${hoursLeft}</b>\n\n` +
+              `💡 After the trial ends, you can subscribe for <b>$${price}/month</b>`;
+
           await ctx.editMessageText(
-            `🎁 <b>Триал активен</b>\n\n` +
-            `📅 Действует до: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n` +
-            `⏰ Осталось часов: <b>${hoursLeft}</b>\n\n` +
-            `💡 После окончания триала вы можете оформить подписку за <b>$${price}/месяц</b>`,
+            trialActiveMsg,
             {
               parse_mode: "HTML",
               reply_markup: {
                 inline_keyboard: [[
-                  { text: "💳 Оформить подписку", callback_data: "subscribe" }
+                  { text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }
                 ]]
               }
             }
@@ -431,17 +482,25 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
         // Check if subscription has expired
         if (user.subscription_expires_at && user.subscription_expires_at <= now) {
+          const subExpiredMsg = lang === 'ru'
+            ? `⏰ <b>Ваша подписка окончилась</b>\n\n` +
+              `📅 Окончилась: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n\n` +
+              `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
+              `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+              `💳 Оплата принимается в криптовалюте`
+            : `⏰ <b>Your subscription has expired</b>\n\n` +
+              `📅 Expired: <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n\n` +
+              `Please subscribe to continue receiving signals.\n\n` +
+              `💰 Price: <b>$${price}/month</b>\n` +
+              `💳 Cryptocurrency payment accepted`;
+
           await ctx.editMessageText(
-            `⏰ <b>Ваша подписка окончилась</b>\n\n` +
-            `📅 Окончилась: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
-            `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
-            `💰 Стоимость: <b>$${price}/месяц</b>\n` +
-            `💳 Оплата принимается в криптовалюте`,
+            subExpiredMsg,
             {
               parse_mode: "HTML",
               reply_markup: {
                 inline_keyboard: [[
-                  { text: "💳 Продлить подписку", callback_data: "subscribe" }
+                  { text: lang === 'ru' ? "💳 Продлить подписку" : "💳 Renew Subscription", callback_data: "subscribe" }
                 ]]
               }
             }
@@ -451,17 +510,25 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
         // Check if trial has expired
         if (user.trial_expires_at && user.trial_expires_at <= now) {
+          const trialExpiredMsg = lang === 'ru'
+            ? `⏰ <b>Ваш триал период окончен</b>\n\n` +
+              `📅 Окончился: <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n\n` +
+              `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
+              `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+              `💳 Оплата принимается в криптовалюте`
+            : `⏰ <b>Your trial period has ended</b>\n\n` +
+              `📅 Ended: <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n\n` +
+              `Please subscribe to continue receiving signals.\n\n` +
+              `💰 Price: <b>$${price}/month</b>\n` +
+              `💳 Cryptocurrency payment accepted`;
+
           await ctx.editMessageText(
-            `⏰ <b>Ваш период триал окончен</b>\n\n` +
-            `📅 Окончился: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
-            `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
-            `💰 Стоимость: <b>$${price}/месяц</b>\n` +
-            `💳 Оплата принимается в криптовалюте`,
+            trialExpiredMsg,
             {
               parse_mode: "HTML",
               reply_markup: {
                 inline_keyboard: [[
-                  { text: "💳 Оформить подписку", callback_data: "subscribe" }
+                  { text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }
                 ]]
               }
             }
@@ -470,16 +537,23 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         }
 
         // User has history but no active/expired subscription or trial - fallback to subscription page
+        const inactiveMsg = lang === 'ru'
+          ? `⏰ <b>Подписка не активна</b>\n\n` +
+            `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
+            `💰 Стоимость: <b>$${price}/месяц</b>\n` +
+            `💳 Оплата принимается в криптовалюте`
+          : `⏰ <b>Subscription Inactive</b>\n\n` +
+            `To continue using the bot, you need to subscribe.\n\n` +
+            `💰 Price: <b>$${price}/month</b>\n` +
+            `💳 Cryptocurrency payment accepted`;
+
         await ctx.editMessageText(
-          `⏰ <b>Подписка не активна</b>\n\n` +
-          `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
-          `💰 Стоимость: <b>$${price}/месяц</b>\n` +
-          `💳 Оплата принимается в криптовалюте`,
+          inactiveMsg,
           {
             parse_mode: "HTML",
             reply_markup: {
               inline_keyboard: [[
-                { text: "💳 Оформить подписку", callback_data: "subscribe" }
+                { text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }
               ]]
             }
           }
@@ -495,7 +569,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
           `${tc(ctx, "welcome.features.rekt")}\n\n` +
           `${tc(ctx, "welcome.trial.title")}\n` +
           `${tc(ctx, "welcome.trial.text")}\n\n` +
-          `💰 ${getUserLanguage(ctx) === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
+          `💰 ${lang === 'ru' ? `После триала: <b>$${price}/месяц</b>` : `After trial: <b>$${price}/month</b>`}`;
 
         await ctx.editMessageText(
           welcomeMessage,
@@ -505,7 +579,8 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
               inline_keyboard: [
                 [{ text: tc(ctx, "btn.start_trial"), callback_data: "start_trial" }],
                 [{ text: tc(ctx, "btn.subscribe"), callback_data: "subscribe" }],
-                [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }]
+                [{ text: tc(ctx, "btn.why_paid"), callback_data: "why_paid" }],
+                [{ text: "🌐 Language / Язык", callback_data: "select_language" }]
               ]
             }
           }
@@ -520,16 +595,19 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
   bot.action("pay_other", async (ctx) => {
     try {
       await ctx.answerCbQuery();
+      const lang = getUserLanguage(ctx);
+
+      const otherCurrencyMsg = lang === 'ru'
+        ? `💳 <b>Другие валюты</b>\n\nДля оплаты в других криптовалютах, пожалуйста, свяжитесь с поддержкой:\n\n📱 @mike7330`
+        : `💳 <b>Other Currencies</b>\n\nFor payment in other cryptocurrencies, please contact support:\n\n📱 @mike7330`;
 
       await ctx.editMessageText(
-        `💳 <b>Другие валюты</b>\n\n` +
-        `Для оплаты в других криптовалютах, пожалуйста, свяжитесь с поддержкой:\n\n` +
-        `📱 @mike7330`,
+        otherCurrencyMsg,
         {
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "⬅️ Вернуться к началу", callback_data: "back_to_start" }]
+              [{ text: lang === 'ru' ? "⬅️ Вернуться к началу" : "⬅️ Back to Start", callback_data: "back_to_start" }]
             ]
           }
         }

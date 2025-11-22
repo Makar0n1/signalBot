@@ -23,6 +23,7 @@ import { SetREKT } from "./controllers/SetREKT/index.js";
 import { Admin } from "./models";
 import subscriptionNotifier from "./services/subscription-notifier.service.js";
 import paymentService from "./services/payment.service";
+import telegramQueueService from "./services/telegram-queue.service.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -68,8 +69,27 @@ export const createOrUpdateMainAdmin = async (user_id: string, isSuperAdmin: boo
   }
 };
 
+// Оптимизированные настройки MongoDB для высокой нагрузки
+const mongoOptions = {
+  // Connection pool настройки
+  maxPoolSize: 100,           // Максимум соединений (по умолчанию 10 - недостаточно для 1000+ пользователей)
+  minPoolSize: 20,            // Минимум открытых соединений для быстрого отклика
+  maxIdleTimeMS: 30000,       // Закрывать неактивные соединения через 30 сек
+
+  // Таймауты
+  socketTimeoutMS: 45000,             // Таймаут сокета (увеличен для длинных операций)
+  serverSelectionTimeoutMS: 5000,     // Быстрый failover при недоступности сервера
+  connectTimeoutMS: 10000,            // Таймаут подключения
+  waitQueueTimeoutMS: 10000,          // Таймаут ожидания соединения из pool
+
+  // Производительность
+  family: 4,                  // Только IPv4 (быстрее чем dual-stack)
+  retryWrites: true,          // Автоматический retry при временных сбоях
+  retryReads: true,           // Автоматический retry чтения
+};
+
 mongoose
-  .connect(MONGODB_URI, { socketTimeoutMS: 30000 }) // Увеличиваем тайм-аут до 30 секунд
+  .connect(MONGODB_URI, mongoOptions)
   .then(async () => {
     logger.debug(undefined, "Подключена бд");
     if (process.env.MAIN_ADMIN_TG_USER_ID) {
@@ -107,6 +127,9 @@ mongoose
     // Initialize payment service with bot instance
     paymentService.setBot(bot);
 
+    // Initialize Telegram queue service for rate-limited message sending
+    telegramQueueService.initialize(bot);
+
     // ByBitService = ByBitServiceCl.getByBitService(Trackable, bot);
     // BYBIT_API = ByBitWebSocketApiService.getWebsocketClient();
 
@@ -126,9 +149,18 @@ mongoose
     process.exit(1);
   });
 
+// Обработка ошибок MongoDB с graceful recovery
 mongoose.connection.on("error", (err) => {
-  logger.error(undefined, "Error occurred during an attempt to establish connection with the database: %O", err);
-  process.exit(1);
+  logger.error(undefined, "MongoDB connection error: %O", err);
+  // Не падаем при временных ошибках - mongoose автоматически переподключится
+});
+
+mongoose.connection.on("disconnected", () => {
+  logger.warn(undefined, "MongoDB disconnected. Attempting to reconnect...");
+});
+
+mongoose.connection.on("reconnected", () => {
+  logger.info(undefined, "MongoDB reconnected successfully");
 });
 
 export { ByBitService, BYBIT_API };

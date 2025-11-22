@@ -11,6 +11,7 @@ export interface IUser extends Document {
   user_id: Number;
   username?: string;
   language_code?: string;
+  preferred_language: "en" | "ru";
 
   bybit_pump: IByBit_PUMP[];
   bybit_oi: IByBit_OI[];
@@ -34,6 +35,7 @@ export const UserSchema = new mongoose.Schema({
   user_id: { type: Number, required: true, unique: true },
   username: { type: String },
   language_code: { type: String },
+  preferred_language: { type: String, enum: ["en", "ru"], default: "en" },
   bybit_pump: [{ type: mongoose.Schema.Types.ObjectId, ref: "ByBit_PUMP" }],
   bybit_oi: [{ type: mongoose.Schema.Types.ObjectId, ref: "ByBit_OI" }],
   bybit_rekt: [{ type: mongoose.Schema.Types.ObjectId, ref: "ByBit_REKT" }],
@@ -51,6 +53,14 @@ export const UserSchema = new mongoose.Schema({
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
+
+// Индексы для оптимизации запросов
+UserSchema.index({ subscription_expires_at: 1 });                           // Поиск истекающих подписок
+UserSchema.index({ trial_expires_at: 1 });                                  // Поиск истекающих триалов
+UserSchema.index({ is_admin: 1 });                                          // Фильтрация админов
+UserSchema.index({ is_banned: 1 });                                         // Фильтрация заблокированных
+UserSchema.index({ subscription_active: 1, subscription_expires_at: 1 });   // Активные подписки
+UserSchema.index({ subscription_active: 1, is_admin: 1, trial_expires_at: 1 }); // Проверка доступа
 
 UserSchema.post("save", async function (this: IUser) {
   try {

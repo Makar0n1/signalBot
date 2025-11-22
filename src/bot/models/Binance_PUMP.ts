@@ -29,6 +29,10 @@ export const Binance_PUMP_Schema = new mongoose.Schema({
 
 // Добавляем составной индекс для symbol и user
 Binance_PUMP_Schema.index({ symbol: 1, user: 1 }, { unique: true });
+// Дополнительные индексы для оптимизации
+Binance_PUMP_Schema.index({ user: 1 });                                  // Для populate и удаления записей пользователя
+Binance_PUMP_Schema.index({ h24_signal_count_growth: 1 });               // Для clearTickersCounts
+Binance_PUMP_Schema.index({ h24_signal_count_recession: 1 });            // Для clearTickersCounts
 
 const Binance_PUMP = mongoose.model<IBinance_PUMP>("Binance_PUMP", Binance_PUMP_Schema);
 export default Binance_PUMP;

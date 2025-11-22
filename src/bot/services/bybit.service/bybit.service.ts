@@ -15,8 +15,9 @@ import UserService from "./../user.service";
 import { getOpenInterestValueChange, getPumpChange, getUpdateTimeOI, getUpdateTimePUMP } from "./utils";
 import logger from "../../utils/logger";
 import { RESTCLIENTOPTIONS, WSCONFIG } from "../../utils/CONST";
-import { update_oi, update_pump, update_rekt } from "../../utils/messages";
+import { update_oi, update_pump } from "../../utils/messages";
 import { IByBitApiResponse, IByBitTickersWsRes } from "../api.service";
+import telegramQueueService from "../telegram-queue.service";
 
 const customLogger = {
   ...DefaultLogger,
@@ -291,12 +292,14 @@ class ByBitSevice {
     return await ByBit_PUMP.find({ symbol: { $in: symbols } })
       .populate({
         path: "user",
+        select: "user_id is_admin subscription_active subscription_expires_at trial_expires_at preferred_language is_banned",
         populate: {
           path: "config",
-          match: { exchange: "bybit" }, // Условие для фильтрации по exchange
+          select: "exchange pump_growth_period pump_recession_period pump_growth_percentage pump_recession_percentage",
+          match: { exchange: { $in: ["bybit"] } },
         },
       })
-
+      .lean() // Возвращает plain JS objects вместо Mongoose documents - быстрее
       .then((records) => records.filter((record) => record.user && record.user.config));
   }
 
@@ -304,12 +307,14 @@ class ByBitSevice {
     return await ByBit_OI.find({ symbol: { $in: symbols } })
       .populate({
         path: "user",
+        select: "user_id is_admin subscription_active subscription_expires_at trial_expires_at preferred_language is_banned",
         populate: {
           path: "config",
-          match: { exchange: "bybit" }, // Условие для фильтрации по exchange
+          select: "exchange oi_growth_period oi_recession_period oi_growth_percentage oi_recession_percentage",
+          match: { exchange: { $in: ["bybit"] } },
         },
       })
-
+      .lean() // Возвращает plain JS objects вместо Mongoose documents - быстрее
       .then((records) => records.filter((record) => record.user && record.user.config));
   }
 
@@ -535,24 +540,16 @@ class ByBitSevice {
       type === "growth" ? pump_record.user.config.pump_growth_period : pump_record.user.config.pump_recession_period;
     const price = type === "growth" ? pump_record.priceGrowth : pump_record.priceRecession;
 
-    try {
-      await this.Bot.telegram.sendMessage(
-        String(pump_record.user.user_id),
-        update_pump(ticker.symbol, period, pump_change, price, Number(ticker.lastPrice), signals_count, type, "BYBIT"),
-        {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        }
-      );
-    } catch (err: any) {
-      if (err.response && err.response.error_code === 403) {
-        await UserService.findAndDeleteUser(Number(pump_record.user.user_id));
-        logger.debug(
-          undefined,
-          `Не удалось отправить сообщение onPumpProcces, удаление юзера по user_id: ${pump_record.user.user_id}`
-        );
-      }
-    }
+    // Get user's preferred language
+    const userLang = pump_record.user.preferred_language || "en";
+
+    // Используем очередь для rate-limited отправки сообщений
+    telegramQueueService.send(
+      String(pump_record.user.user_id),
+      update_pump(ticker.symbol, period, pump_change, price, Number(ticker.lastPrice), signals_count, type, "BYBIT", userLang)
+    ).catch((err) => {
+      logger.error(undefined, `Failed to queue PUMP message for user ${pump_record.user.user_id}: ${err.message}`);
+    });
   }
 
   private async sendOISignal(
@@ -586,7 +583,7 @@ class ByBitSevice {
 
     const signals_count =
       type === "growth" ? ticker.h24_signal_count_growth + 1 : ticker.h24_signal_count_recession + 1;
-    const period = type === "growth" ? ticker.user.config.pump_growth_period : ticker.user.config.pump_recession_period;
+    const period = type === "growth" ? ticker.user.config.oi_growth_period : ticker.user.config.oi_recession_period;
     const { pump_change_growth, pump_change_recession } =
       type === "growth" ? getPumpChange(updateData, ticker) : getPumpChange(updateData, ticker);
     const oi_change_value =
@@ -594,33 +591,27 @@ class ByBitSevice {
         ? (Number(updateData.openInterestValue) - ticker.openInterestValueGrowth).toFixed(2)
         : (ticker.openInterestValueRecession - Number(updateData.openInterestValue)).toFixed(2);
     const change_price = type === "growth" ? pump_change_growth : pump_change_recession;
-    try {
-      await this.Bot.telegram.sendMessage(
-        String(ticker.user.user_id),
-        update_oi(
-          ticker.symbol,
-          period,
-          oi_change,
-          Number(oi_change_value),
-          change_price,
-          signals_count,
-          type,
-          "BYBIT"
-        ),
-        {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        }
-      );
-    } catch (err: any) {
-      if (err.response && err.response.error_code === 403) {
-        await UserService.findAndDeleteUser(Number(ticker.user.user_id));
-        logger.debug(
-          undefined,
-          `Не удалось отправить сообщение onTickerUpdateREKT, удаление юзера по user_id: ${ticker.user.user_id}`
-        );
-      }
-    }
+
+    // Get user's preferred language
+    const userLang = ticker.user.preferred_language || "en";
+
+    // Используем очередь для rate-limited отправки сообщений
+    telegramQueueService.send(
+      String(ticker.user.user_id),
+      update_oi(
+        ticker.symbol,
+        period,
+        oi_change,
+        Number(oi_change_value),
+        change_price,
+        signals_count,
+        type,
+        "BYBIT",
+        userLang
+      )
+    ).catch((err) => {
+      logger.error(undefined, `Failed to queue OI message for user ${ticker.user.user_id}: ${err.message}`);
+    });
   }
 
   private async bulkUpdateRecords(
@@ -645,64 +636,94 @@ class ByBitSevice {
   }
 
   // Проверяет, существует ли данный тикер в базе у игрока, если нет - то добавляет его в базу
+  // Оптимизировано: batch upsert вместо последовательных запросов
   private async pumpTickersExist(tickers: IByBitTickersWsRes[]) {
-    for (const ticker of tickers) {
-      const usersWithoutByBitRecords = await UserService.getUsersWithoutByBitPumpSymbol(ticker.symbol);
+    const symbols = [...new Set(tickers.map((t) => t.symbol))];
+    const tickerMap = new Map(tickers.map((t) => [t.symbol, t]));
 
-      if (!usersWithoutByBitRecords) {
-        continue;
-      }
+    // Получаем всех пользователей у которых нет хотя бы одного из символов
+    const usersWithoutRecords = await UserService.getUsersWithoutByBitPumpSymbols(symbols);
 
-      for (const user of usersWithoutByBitRecords) {
-        const filter = { symbol: ticker.symbol, user: user._id };
-        const update = {
-          $setOnInsert: {
-            last_update_growth: new Date(),
-            last_update_recession: new Date(),
-            priceGrowth: Number(ticker.lastPrice),
-            priceRecession: Number(ticker.lastPrice),
+    if (!usersWithoutRecords || usersWithoutRecords.length === 0) {
+      return;
+    }
 
-            h24_signal_count_recession: 0,
-            h24_signal_count_growth: 0,
+    // Собираем все bulk операции
+    const bulkOps = [];
+    for (const { user, missingSymbols } of usersWithoutRecords) {
+      for (const symbol of missingSymbols) {
+        const ticker = tickerMap.get(symbol);
+        if (!ticker) continue;
+
+        bulkOps.push({
+          updateOne: {
+            filter: { symbol, user: user._id },
+            update: {
+              $setOnInsert: {
+                last_update_growth: new Date(),
+                last_update_recession: new Date(),
+                priceGrowth: Number(ticker.lastPrice),
+                priceRecession: Number(ticker.lastPrice),
+                h24_signal_count_recession: 0,
+                h24_signal_count_growth: 0,
+              },
+            },
+            upsert: true,
           },
-        };
-
-        await ByBit_PUMP.updateOne(filter, update, { upsert: true });
-        logger.debug(
-          undefined,
-          `Для пользователя с tg-id ${user.user_id} создана запись ByBit_pumps с ${ticker.symbol}`
-        );
+        });
       }
+    }
+
+    if (bulkOps.length > 0) {
+      await ByBit_PUMP.bulkWrite(bulkOps, { ordered: false });
+      logger.debug(undefined, `Batch upsert: ${bulkOps.length} записей ByBit_pumps`);
     }
   }
 
   // Проверяет, существует ли данный тикер в базе у игрока, если нет - то добавляет его в базу
+  // Оптимизировано: batch upsert вместо последовательных запросов
   private async oiTickersExist(tickers: IByBitTickersWsRes[]) {
-    for (const ticker of tickers) {
-      const usersWithoutByBitRecords = await UserService.getUsersWithoutByBitOISymbol(ticker.symbol);
+    const symbols = [...new Set(tickers.map((t) => t.symbol))];
+    const tickerMap = new Map(tickers.map((t) => [t.symbol, t]));
 
-      if (!usersWithoutByBitRecords) {
-        continue;
-      }
+    // Получаем всех пользователей у которых нет хотя бы одного из символов
+    const usersWithoutRecords = await UserService.getUsersWithoutByBitOISymbols(symbols);
 
-      for (const user of usersWithoutByBitRecords) {
-        const filter = { symbol: ticker.symbol, user: user._id };
-        const update = {
-          $setOnInsert: {
-            last_update_growth: new Date(),
-            last_update_recession: new Date(),
-            priceGrowth: Number(ticker.lastPrice),
-            priceRecession: Number(ticker.lastPrice),
-            openInterestValueGrowth: Number(ticker.openInterestValue),
-            openInterestValueRecession: Number(ticker.openInterestValue),
-            h24_signal_count_recession: 0,
-            h24_signal_count_growth: 0,
+    if (!usersWithoutRecords || usersWithoutRecords.length === 0) {
+      return;
+    }
+
+    // Собираем все bulk операции
+    const bulkOps = [];
+    for (const { user, missingSymbols } of usersWithoutRecords) {
+      for (const symbol of missingSymbols) {
+        const ticker = tickerMap.get(symbol);
+        if (!ticker) continue;
+
+        bulkOps.push({
+          updateOne: {
+            filter: { symbol, user: user._id },
+            update: {
+              $setOnInsert: {
+                last_update_growth: new Date(),
+                last_update_recession: new Date(),
+                priceGrowth: Number(ticker.lastPrice),
+                priceRecession: Number(ticker.lastPrice),
+                openInterestValueGrowth: Number(ticker.openInterestValue),
+                openInterestValueRecession: Number(ticker.openInterestValue),
+                h24_signal_count_recession: 0,
+                h24_signal_count_growth: 0,
+              },
+            },
+            upsert: true,
           },
-        };
-
-        await ByBit_OI.updateOne(filter, update, { upsert: true });
-        logger.debug(undefined, `Для пользователя с tg-id ${user.user_id} создана запись ByBit_ois с ${ticker.symbol}`);
+        });
       }
+    }
+
+    if (bulkOps.length > 0) {
+      await ByBit_OI.bulkWrite(bulkOps, { ordered: false });
+      logger.debug(undefined, `Batch upsert: ${bulkOps.length} записей ByBit_ois`);
     }
   }
 
@@ -747,10 +768,22 @@ class ByBitSevice {
   }
 
   // Сбрасывает у всех тикиров кол-во в день
+  // Оптимизировано: обновляем только записи где счётчик > 0 (используются индексы)
   public async clearTickersCounts() {
-    await ByBit_OI.updateMany({}, { h24_signal_count_growth: 0, h24_signal_count_recession: 0 });
-    await ByBit_PUMP.updateMany({}, { h24_signal_count_growth: 0, h24_signal_count_recession: 0 });
-    await ByBit_REKT.updateMany({}, { h24_signal_count_liq: 0 });
+    await Promise.all([
+      ByBit_OI.updateMany(
+        { $or: [{ h24_signal_count_growth: { $gt: 0 } }, { h24_signal_count_recession: { $gt: 0 } }] },
+        { h24_signal_count_growth: 0, h24_signal_count_recession: 0 }
+      ),
+      ByBit_PUMP.updateMany(
+        { $or: [{ h24_signal_count_growth: { $gt: 0 } }, { h24_signal_count_recession: { $gt: 0 } }] },
+        { h24_signal_count_growth: 0, h24_signal_count_recession: 0 }
+      ),
+      ByBit_REKT.updateMany(
+        { h24_signal_count_liq: { $gt: 0 } },
+        { h24_signal_count_liq: 0 }
+      ),
+    ]);
   }
 
   static getService(bot: Context) {

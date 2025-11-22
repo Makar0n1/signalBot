@@ -44,6 +44,11 @@ export const ConfigSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 
+// Индексы для оптимизации запросов
+ConfigSchema.index({ user: 1 });                    // Быстрый поиск конфига по пользователю
+ConfigSchema.index({ exchange: 1 });                // Фильтрация по биржам
+ConfigSchema.index({ user: 1, exchange: 1 });       // Составной индекс для populate с match
+
 // Создание модели Config
 const Config = mongoose.model<IConfig>("Config", ConfigSchema);
 export default Config;

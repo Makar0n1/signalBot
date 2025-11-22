@@ -8,6 +8,7 @@ import UserService from "./../user.service";
 import { update_pump, update_rekt } from "../../utils/messages";
 import { getPumpChange, getUpdateTimePUMP } from "./utils";
 import logger from "../../utils/logger";
+import telegramQueueService from "../telegram-queue.service";
 
 class BinanceService {
   private Bot: Context;
@@ -165,11 +166,14 @@ class BinanceService {
     return await Binance_PUMP.find({ symbol: { $in: symbols } })
       .populate({
         path: "user",
+        select: "user_id is_admin subscription_active subscription_expires_at trial_expires_at preferred_language is_banned",
         populate: {
           path: "config",
-          match: { exchange: "binance" },
+          select: "exchange pump_growth_period pump_recession_period pump_growth_percentage pump_recession_percentage",
+          match: { exchange: { $in: ["binance"] } },
         },
       })
+      .lean() // Возвращает plain JS objects вместо Mongoose documents - быстрее
       .then((records) => records.filter((record) => record.user && record.user.config));
   }
 
@@ -290,33 +294,26 @@ class BinanceService {
       type === "growth" ? pump_record.user.config.pump_growth_period : pump_record.user.config.pump_recession_period;
     const price = type === "growth" ? pump_record.priceGrowth : pump_record.priceRecession;
 
-    try {
-      await this.Bot.telegram.sendMessage(
-        String(pump_record.user.user_id),
-        update_pump(
-          ticker.symbol,
-          period,
-          pump_change,
-          price,
-          Number(ticker.curDayClose),
-          signals_count,
-          type,
-          "BINANCE"
-        ),
-        {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        }
-      );
-    } catch (err: any) {
-      if (err.response && err.response.error_code === 403) {
-        await UserService.findAndDeleteUser(Number(pump_record.user.user_id));
-        logger.debug(
-          undefined,
-          `Не удалось отправить сообщение onTickerUpdateREKT, удаление юзера по user_id: ${pump_record.user.user_id}`
-        );
-      }
-    }
+    // Get user's preferred language
+    const userLang = pump_record.user.preferred_language || "en";
+
+    // Используем очередь для rate-limited отправки сообщений
+    telegramQueueService.send(
+      String(pump_record.user.user_id),
+      update_pump(
+        ticker.symbol,
+        period,
+        pump_change,
+        price,
+        Number(ticker.curDayClose),
+        signals_count,
+        type,
+        "BINANCE",
+        userLang
+      )
+    ).catch((err) => {
+      logger.error(undefined, `Failed to queue PUMP message for user ${pump_record.user.user_id}: ${err.message}`);
+    });
   }
 
   private async bulkUpdatePumpRecords(
@@ -345,17 +342,19 @@ class BinanceService {
       });
   }
 
-  // Обработчик Pupm
+  // Обработчик REKT
   private async onTickerUpdateREKT(liquidation: ForceOrder): Promise<void> {
     const rect_records = await Binance_REKT.find({ symbol: liquidation.symbol })
       .populate({
         path: "user",
+        select: "user_id is_admin subscription_active subscription_expires_at trial_expires_at preferred_language is_banned",
         populate: {
           path: "config",
-          select: "rekt_limit",
-          match: { exchange: "binance" },
+          select: "rekt_limit exchange",
+          match: { exchange: { $in: ["binance"] } },
         },
       })
+      .lean() // Возвращает plain JS objects - быстрее
       .then((records) => records.filter((record) => record.user && record.user.config));
 
     for (const rect_record of rect_records) {
@@ -389,24 +388,16 @@ class BinanceService {
       if (Number(liquidation.price) >= rect_record.user.config.rekt_limit) {
         const signals_count = rect_record.h24_signal_count_liq + 1;
 
-        try {
-          await this.Bot.telegram.sendMessage(
-            String(rect_record.user.user_id),
-            update_rekt(liquidation.symbol, Number(liquidation.price), liquidation.side, signals_count, "BINANCE"),
-            {
-              parse_mode: "HTML",
-              link_preview_options: { is_disabled: true },
-            }
-          );
-        } catch (err: any) {
-          if (err.response && err.response.error_code === 403) {
-            await UserService.findAndDeleteUser(Number(rect_record.user.user_id));
-            logger.debug(
-              undefined,
-              `Не удалось отправить сообщение onTickerUpdateREKT, удаление юзера по user_id: ${rect_record.user.user_id}`
-            );
-          }
-        }
+        // Get user's preferred language
+        const userLang = rect_record.user.preferred_language || "en";
+
+        // Используем очередь с высоким приоритетом для REKT сигналов (ликвидации критичны)
+        telegramQueueService.sendHighPriority(
+          String(rect_record.user.user_id),
+          update_rekt(liquidation.symbol, Number(liquidation.price), liquidation.side, signals_count, "BINANCE", userLang)
+        ).catch((err) => {
+          logger.error(undefined, `Failed to queue REKT message for user ${rect_record.user.user_id}: ${err.message}`);
+        });
 
         await Binance_REKT.updateOne(
           { symbol: liquidation.symbol, user: rect_record.user._id },
@@ -419,36 +410,47 @@ class BinanceService {
   }
 
   // Проверяет, существует ли данный тикер в базе у игрока, если нет - то добавляет его в базу
+  // Оптимизировано: batch upsert вместо последовательных запросов
   private async checkTickersExist(tickers: Ticker[]) {
-    const uniqueTickers = tickers.filter(
-      (ticker, index, self) => index === self.findIndex((t) => t.symbol === ticker.symbol)
-    );
+    const symbols = [...new Set(tickers.map((t) => t.symbol))];
+    const tickerMap = new Map(tickers.map((t) => [t.symbol, t]));
 
-    for (const ticker of uniqueTickers) {
-      const usersWithoutBinanceRecords = await UserService.getBinancePumpRecordsForUsersWithoutSymbol(ticker.symbol);
-      if (!usersWithoutBinanceRecords) {
-        continue;
-      }
+    // Получаем всех пользователей у которых нет хотя бы одного из символов
+    const usersWithoutRecords = await UserService.getBinancePumpRecordsForUsersWithoutSymbols(symbols);
 
-      for (const user of usersWithoutBinanceRecords) {
-        const filter = { symbol: ticker.symbol, user: user._id };
-        const update = {
-          $setOnInsert: {
-            last_update_growth: new Date(),
-            last_update_recession: new Date(),
-            priceGrowth: Number(ticker.curDayClose),
-            priceRecession: Number(ticker.curDayClose),
-            h24_signal_count_recession: 0,
-            h24_signal_count_growth: 0,
+    if (!usersWithoutRecords || usersWithoutRecords.length === 0) {
+      return;
+    }
+
+    // Собираем все bulk операции
+    const bulkOps = [];
+    for (const { user, missingSymbols } of usersWithoutRecords) {
+      for (const symbol of missingSymbols) {
+        const ticker = tickerMap.get(symbol);
+        if (!ticker) continue;
+
+        bulkOps.push({
+          updateOne: {
+            filter: { symbol, user: user._id },
+            update: {
+              $setOnInsert: {
+                last_update_growth: new Date(),
+                last_update_recession: new Date(),
+                priceGrowth: Number(ticker.curDayClose),
+                priceRecession: Number(ticker.curDayClose),
+                h24_signal_count_recession: 0,
+                h24_signal_count_growth: 0,
+              },
+            },
+            upsert: true,
           },
-        };
-
-        await Binance_PUMP.updateOne(filter, update, { upsert: true });
-        logger.debug(
-          undefined,
-          `Для пользователя с tg-id ${user.user_id} создана запись binance_pumps с ${ticker.symbol}`
-        );
+        });
       }
+    }
+
+    if (bulkOps.length > 0) {
+      await Binance_PUMP.bulkWrite(bulkOps, { ordered: false });
+      logger.debug(undefined, `Batch upsert: ${bulkOps.length} записей binance_pumps`);
     }
   }
 
@@ -518,10 +520,22 @@ class BinanceService {
   }
 
   // Сбрасывает у всех тикиров кол-во в день
+  // Оптимизировано: обновляем только записи где счётчик > 0 (используются индексы), параллельно
   public async clearTickersCounts() {
-    await Binance_OI.updateMany({}, { h24_signal_count_growth: 0, h24_signal_count_recession: 0 });
-    await Binance_PUMP.updateMany({}, { h24_signal_count_growth: 0, h24_signal_count_recession: 0 });
-    await Binance_REKT.updateMany({}, { h24_signal_count_liq: 0 });
+    await Promise.all([
+      Binance_OI.updateMany(
+        { $or: [{ h24_signal_count_growth: { $gt: 0 } }, { h24_signal_count_recession: { $gt: 0 } }] },
+        { h24_signal_count_growth: 0, h24_signal_count_recession: 0 }
+      ),
+      Binance_PUMP.updateMany(
+        { $or: [{ h24_signal_count_growth: { $gt: 0 } }, { h24_signal_count_recession: { $gt: 0 } }] },
+        { h24_signal_count_growth: 0, h24_signal_count_recession: 0 }
+      ),
+      Binance_REKT.updateMany(
+        { h24_signal_count_liq: { $gt: 0 } },
+        { h24_signal_count_liq: 0 }
+      ),
+    ]);
   }
 
   static getService(bot: Context) {

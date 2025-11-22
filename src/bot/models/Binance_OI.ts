@@ -32,6 +32,10 @@ export const Binance_OI_Schema = new mongoose.Schema({
 
 // Добавляем составной индекс для symbol и user
 Binance_OI_Schema.index({ symbol: 1, user: 1 }, { unique: true });
+// Дополнительные индексы для оптимизации
+Binance_OI_Schema.index({ user: 1 });                                    // Для populate и удаления записей пользователя
+Binance_OI_Schema.index({ h24_signal_count_growth: 1 });                 // Для clearTickersCounts
+Binance_OI_Schema.index({ h24_signal_count_recession: 1 });              // Для clearTickersCounts
 
 const Binance_OI = mongoose.model<IBinance_OI>("Binance_OI", Binance_OI_Schema);
 export default Binance_OI;

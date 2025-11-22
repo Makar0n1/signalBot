@@ -5,6 +5,7 @@ import { Payment, User } from "../../models";
 import logger from "../../utils/logger";
 import getMainKeyboard from "../../keyboards/main.keyboard";
 import { t, Language } from "../../utils/i18n";
+import userCacheService from "../user-cache.service";
 
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY || "";
 const NOWPAYMENTS_IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "";
@@ -293,6 +294,9 @@ class PaymentService {
       user.subscription_expires_at = expiryDate;
       user.subscription_expiry_notified = false; // Reset notification flag
       await user.save();
+
+      // Invalidate user cache so new subscription status is immediately available
+      await userCacheService.invalidate(user_id);
 
       logger.info(undefined, `Subscription activated for user ${user_id}, expires at ${expiryDate}`);
 
