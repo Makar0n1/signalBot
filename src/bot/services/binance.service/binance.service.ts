@@ -195,14 +195,16 @@ class BinanceService {
       const pump_records = recordsBySymbol[ticker.symbol];
       if (!pump_records) continue;
 
-      for (const pump_record of pump_records) {
-        const updateForUser = this.processPumpRecord(ticker, pump_record);
-        if (updateForUser) {
-          if (updateForUser && updateForUser.filter && updateForUser.data) {
-            dataUpdate.push(
-              updateForUser as { filter: { symbol: string; user: string }; data: { [key: string]: any } }
-            );
-          }
+      // Группируем записи по настройкам (period + percentage)
+      // Пользователи с одинаковыми настройками должны получать одинаковые сигналы
+      const groupedBySettings = this.groupPumpRecordsBySettings(pump_records);
+
+      for (const group of Object.values(groupedBySettings)) {
+        const referenceRecord = group[0];
+        const result = this.processPumpRecordGroup(ticker, referenceRecord, group);
+
+        if (result) {
+          dataUpdate.push(...result.updates);
         }
       }
     }
@@ -210,58 +212,92 @@ class BinanceService {
     return dataUpdate;
   }
 
-  private processPumpRecord(ticker: Ticker, pump_record: any) {
-    const { updateTimeGrowth, updateTimeRecession } = getUpdateTimePUMP(pump_record, pump_record.user.config);
-    const isUpdatedTime = { updatedTimeGrowth: false, updatedTimeRecession: false };
-    let updateForUser: { filter?: { symbol: string; user: string }; data?: { [key: string]: any } } = {};
+  // Группировка записей по настройкам PUMP
+  private groupPumpRecordsBySettings(records: any[]): { [key: string]: any[] } {
+    const groups: { [key: string]: any[] } = {};
 
-    if (updateTimeGrowth.getTime() <= new Date().getTime()) {
-      updateForUser = {
-        filter: { symbol: ticker.symbol, user: pump_record.user._id },
-        data: { ...updateForUser.data, priceGrowth: Number(ticker.curDayClose), last_update_growth: new Date() },
-      };
-      isUpdatedTime.updatedTimeGrowth = true;
+    for (const record of records) {
+      const config = record.user.config;
+      const key = `${config.pump_growth_period}_${config.pump_recession_period}_${config.pump_growth_percentage}_${config.pump_recession_percentage}`;
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(record);
     }
 
-    if (updateTimeRecession.getTime() <= new Date().getTime()) {
-      updateForUser = {
-        filter: { symbol: ticker.symbol, user: pump_record.user._id },
-        data: { ...updateForUser.data, priceRecession: Number(ticker.curDayClose), last_update_recession: new Date() },
-      };
-      isUpdatedTime.updatedTimeRecession = true;
+    return groups;
+  }
+
+  // Обработка группы записей с одинаковыми настройками
+  private processPumpRecordGroup(
+    ticker: Ticker,
+    referenceRecord: any,
+    group: any[]
+  ): { updates: { filter: { symbol: string; user: string }; data: { [key: string]: any } }[] } | null {
+    const { updateTimeGrowth, updateTimeRecession } = getUpdateTimePUMP(referenceRecord, referenceRecord.user.config);
+    const now = new Date();
+    const updates: { filter: { symbol: string; user: string }; data: { [key: string]: any } }[] = [];
+
+    const isTimeToResetGrowth = updateTimeGrowth.getTime() <= now.getTime();
+    const isTimeToResetRecession = updateTimeRecession.getTime() <= now.getTime();
+
+    // Если время сброса - обновляем точку отсчёта для ВСЕХ в группе
+    if (isTimeToResetGrowth || isTimeToResetRecession) {
+      for (const record of group) {
+        const data: { [key: string]: any } = {};
+        if (isTimeToResetGrowth) {
+          data.priceGrowth = Number(ticker.curDayClose);
+          data.last_update_growth = now;
+        }
+        if (isTimeToResetRecession) {
+          data.priceRecession = Number(ticker.curDayClose);
+          data.last_update_recession = now;
+        }
+        updates.push({
+          filter: { symbol: ticker.symbol, user: record.user._id },
+          data,
+        });
+      }
+      return { updates };
     }
 
-    const { pump_change_recession, pump_change_growth } = getPumpChange(ticker, pump_record);
+    // Рассчитываем изменение от эталонной записи
+    const { pump_change_recession, pump_change_growth } = getPumpChange(ticker, referenceRecord);
+    const config = referenceRecord.user.config;
 
-    if (!isUpdatedTime.updatedTimeGrowth && pump_change_growth >= pump_record.user.config.pump_growth_percentage) {
-      this.sendPumpSignal(ticker, pump_record, pump_change_growth, "growth");
-      updateForUser = {
-        filter: { symbol: ticker.symbol, user: pump_record.user._id },
-        data: {
-          ...updateForUser.data,
-          priceGrowth: Number(ticker.curDayClose),
-          last_update_growth: Date.now(),
-          h24_signal_count_growth: pump_record.h24_signal_count_growth + 1,
-        },
-      };
-    } else if (
-      !isUpdatedTime.updatedTimeRecession &&
-      pump_change_recession < 0 &&
-      Math.abs(pump_change_recession) >= pump_record.user.config.pump_recession_percentage
-    ) {
-      this.sendPumpSignal(ticker, pump_record, Math.abs(pump_change_recession), "recession");
-      updateForUser = {
-        filter: { symbol: ticker.symbol, user: pump_record.user._id },
-        data: {
-          ...updateForUser.data,
-          priceRecession: Number(ticker.curDayClose),
-          last_update_recession: Date.now(),
-          h24_signal_count_recession: pump_record.h24_signal_count_recession + 1,
-        },
-      };
+    const shouldSignalGrowth = pump_change_growth >= config.pump_growth_percentage;
+    const shouldSignalRecession = pump_change_recession < 0 && Math.abs(pump_change_recession) >= config.pump_recession_percentage;
+
+    if (shouldSignalGrowth) {
+      // Отправляем сигнал ВСЕМ пользователям в группе и обновляем ВСЕ записи
+      for (const record of group) {
+        this.sendPumpSignal(ticker, record, pump_change_growth, "growth");
+        updates.push({
+          filter: { symbol: ticker.symbol, user: record.user._id },
+          data: {
+            priceGrowth: Number(ticker.curDayClose),
+            last_update_growth: now,
+            h24_signal_count_growth: record.h24_signal_count_growth + 1,
+          },
+        });
+      }
+    } else if (shouldSignalRecession) {
+      // Отправляем сигнал ВСЕМ пользователям в группе и обновляем ВСЕ записи
+      for (const record of group) {
+        this.sendPumpSignal(ticker, record, Math.abs(pump_change_recession), "recession");
+        updates.push({
+          filter: { symbol: ticker.symbol, user: record.user._id },
+          data: {
+            priceRecession: Number(ticker.curDayClose),
+            last_update_recession: now,
+            h24_signal_count_recession: record.h24_signal_count_recession + 1,
+          },
+        });
+      }
     }
 
-    return updateForUser.filter ? updateForUser : null;
+    return updates.length > 0 ? { updates } : null;
   }
 
   private async sendPumpSignal(ticker: Ticker, pump_record: any, pump_change: number, type: "growth" | "recession") {
