@@ -1,11 +1,11 @@
 import { Markup } from "telegraf";
-import { BACK_ROUTES, PUMP_ROUTES } from "../utils/CONST";
+import { t, Language } from "../utils/i18n";
 
-const getPUMPKeyboard = () => {
+const getPUMPKeyboard = (lang: Language = "en") => {
   const pumpKeyboard = Markup.keyboard([
-    [PUMP_ROUTES.UP_PERIOD, PUMP_ROUTES.UP_PERCENTEGES],
-    [PUMP_ROUTES.DOWN_PERIOD, PUMP_ROUTES.DOWN_PERCENTEGES],
-    [BACK_ROUTES.BACK]
+    [t("keyboard.pump.up_period", lang), t("keyboard.pump.up_percent", lang)],
+    [t("keyboard.pump.down_period", lang), t("keyboard.pump.down_percent", lang)],
+    [t("keyboard.back", lang)]
   ]).resize();
 
   return { pumpKeyboard };

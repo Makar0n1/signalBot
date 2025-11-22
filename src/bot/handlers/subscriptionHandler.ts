@@ -28,7 +28,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
 
       // Check if trial already started OR if user already has active subscription
       if (user.trial_started_at) {
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
         await ctx.editMessageText(
           tc(ctx, "trial.already_used"),
           { parse_mode: "HTML" }
@@ -41,7 +41,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       }
 
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
         await ctx.editMessageText(
           tc(ctx, "trial.has_subscription"),
           { parse_mode: "HTML" }
@@ -63,7 +63,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
       // Инвалидировать кэш пользователя после старта триала
       await userCacheService.invalidate(userId);
 
-      const { mainKeyboard } = getMainKeyboard();
+      const { mainKeyboard } = getMainKeyboard(lang);
 
       const trialMessage = `${tc(ctx, "trial.activated.title")}\n\n` +
         `${tc(ctx, "trial.activated.text")}\n\n` +
@@ -359,7 +359,7 @@ export default function subscriptionHandlers(bot: Telegraf<Context>) {
         }
 
         // Send success message with main keyboard
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
 
         await ctx.replyWithHTML(
           `✅ <b>${lang === 'ru' ? 'Платёж получен!' : 'Payment received!'}</b>\n\n` +

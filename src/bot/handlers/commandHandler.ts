@@ -49,7 +49,7 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check if user is admin
       if (user.is_admin) {
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
         await ctx.replyWithHTML(
           tc(ctx, "admin.welcome"),
           mainKeyboard
@@ -59,7 +59,7 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check if user has active subscription
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
         await ctx.replyWithHTML(
           tc(ctx, "admin.welcome"), // Using same message for returning users
           mainKeyboard
@@ -69,7 +69,7 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check if trial is active
       if (user.trial_expires_at && user.trial_expires_at > now) {
-        const { mainKeyboard } = getMainKeyboard();
+        const { mainKeyboard } = getMainKeyboard(lang);
         const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
         const trialActive = lang === "ru"
           ? `✨ <b>У вас активен триал на ${hoursLeft} часов</b>`
@@ -144,25 +144,30 @@ export default function handlers(bot: Telegraf<Context>) {
       await User.updateOne({ user_id: userId }, { preferred_language: "en" });
       setUserLanguage(userId, "en");
 
-      // Send confirmation message and delete after 10 seconds
-      const confirmMsg = await ctx.editMessageText(
-        "✅ Language changed to English",
-        { parse_mode: "HTML" }
-      );
+      const user = await User.findOne({ user_id: userId });
+      const now = new Date();
 
-      // Wait 10 seconds then show updated welcome message
-      setTimeout(async () => {
+      // Check user status and show appropriate message
+      if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
+        // User has access - delete message and update keyboard
         try {
-          const user = await User.findOne({ user_id: userId });
-          const now = new Date();
+          await ctx.deleteMessage();
+        } catch (e) {}
 
-          // Check user status and show appropriate message
-          if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-            await ctx.editMessageText(
-              t("admin.welcome", "en"),
-              { parse_mode: "HTML" }
-            );
-          } else {
+        const { mainKeyboard } = getMainKeyboard("en");
+        await ctx.replyWithHTML(
+          t("language.changed", "en"),
+          mainKeyboard
+        );
+      } else {
+        // Show welcome message with updated language after 1 second
+        await ctx.editMessageText(
+          t("language.changed", "en"),
+          { parse_mode: "HTML" }
+        );
+
+        setTimeout(async () => {
+          try {
             const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
             await ctx.editMessageText(
               `${t("welcome.title", "en")}\n\n` +
@@ -186,11 +191,11 @@ export default function handlers(bot: Telegraf<Context>) {
                 }
               }
             );
+          } catch (e) {
+            // Message might have been deleted
           }
-        } catch (e) {
-          // Message might have been deleted
-        }
-      }, 10000);
+        }, 1000);
+      }
     } catch (error) {
       console.error("Error in set_lang_en handler", error);
     }
@@ -209,25 +214,30 @@ export default function handlers(bot: Telegraf<Context>) {
       await User.updateOne({ user_id: userId }, { preferred_language: "ru" });
       setUserLanguage(userId, "ru");
 
-      // Send confirmation message and delete after 10 seconds
-      const confirmMsg = await ctx.editMessageText(
-        "✅ Язык изменен на русский",
-        { parse_mode: "HTML" }
-      );
+      const user = await User.findOne({ user_id: userId });
+      const now = new Date();
 
-      // Wait 10 seconds then show updated welcome message
-      setTimeout(async () => {
+      // Check user status and show appropriate message
+      if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
+        // User has access - delete message and update keyboard
         try {
-          const user = await User.findOne({ user_id: userId });
-          const now = new Date();
+          await ctx.deleteMessage();
+        } catch (e) {}
 
-          // Check user status and show appropriate message
-          if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-            await ctx.editMessageText(
-              t("admin.welcome", "ru"),
-              { parse_mode: "HTML" }
-            );
-          } else {
+        const { mainKeyboard } = getMainKeyboard("ru");
+        await ctx.replyWithHTML(
+          t("language.changed", "ru"),
+          mainKeyboard
+        );
+      } else {
+        // Show welcome message with updated language after 1 second
+        await ctx.editMessageText(
+          t("language.changed", "ru"),
+          { parse_mode: "HTML" }
+        );
+
+        setTimeout(async () => {
+          try {
             const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
             await ctx.editMessageText(
               `${t("welcome.title", "ru")}\n\n` +
@@ -251,11 +261,11 @@ export default function handlers(bot: Telegraf<Context>) {
                 }
               }
             );
+          } catch (e) {
+            // Message might have been deleted
           }
-        } catch (e) {
-          // Message might have been deleted
-        }
-      }, 10000);
+        }, 1000);
+      }
     } catch (error) {
       console.error("Error in set_lang_ru handler", error);
     }

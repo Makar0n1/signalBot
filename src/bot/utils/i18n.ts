@@ -196,6 +196,182 @@ const translations: Translations = {
     ru: "🇺🇸 Английский",
     en: "🇺🇸 English"
   },
+
+  // Main keyboard buttons
+  "keyboard.oi": {
+    ru: "💼 OI Screener",
+    en: "💼 OI Screener"
+  },
+  "keyboard.pump": {
+    ru: "📈 Pump Screener",
+    en: "📈 Pump Screener"
+  },
+  "keyboard.rekt": {
+    ru: "💣 REKT Screener",
+    en: "💣 REKT Screener"
+  },
+  "keyboard.exchange": {
+    ru: "💹 Выбор биржи",
+    en: "💹 Exchange"
+  },
+  "keyboard.subscription": {
+    ru: "📱 Моя подписка",
+    en: "📱 My Subscription"
+  },
+  "keyboard.back": {
+    ru: "⬅️ Назад",
+    en: "⬅️ Back"
+  },
+
+  // OI keyboard
+  "keyboard.oi.up_period": {
+    ru: "📈 Период роста",
+    en: "📈 Growth Period"
+  },
+  "keyboard.oi.down_period": {
+    ru: "📉 Период просадки",
+    en: "📉 Decline Period"
+  },
+  "keyboard.oi.up_percent": {
+    ru: "🟩 Процент роста",
+    en: "🟩 Growth %"
+  },
+  "keyboard.oi.down_percent": {
+    ru: "🟥 Процент просадки",
+    en: "🟥 Decline %"
+  },
+
+  // PUMP keyboard
+  "keyboard.pump.up_period": {
+    ru: "📈 Период лонг",
+    en: "📈 Long Period"
+  },
+  "keyboard.pump.down_period": {
+    ru: "📉 Период шорт",
+    en: "📉 Short Period"
+  },
+  "keyboard.pump.up_percent": {
+    ru: "🟩 Процент лонг",
+    en: "🟩 Long %"
+  },
+  "keyboard.pump.down_percent": {
+    ru: "🟥 Процент шорт",
+    en: "🟥 Short %"
+  },
+
+  // REKT keyboard
+  "keyboard.rekt.set_limit": {
+    ru: "🔻 Установить минимальную ликвидацию",
+    en: "🔻 Set Minimum Liquidation"
+  },
+
+  // Cancel button
+  "keyboard.cancel": {
+    ru: "❌ Отменить",
+    en: "❌ Cancel"
+  },
+
+  // Subscription messages
+  "subscription.admin_status": {
+    ru: "👑 <b>Статус подписки: Администратор</b>\n\nУ вас полный неограниченный доступ ко всем функциям бота!",
+    en: "👑 <b>Subscription Status: Administrator</b>\n\nYou have full unlimited access to all bot features!"
+  },
+  "subscription.active": {
+    ru: "✅ <b>Подписка активна</b>",
+    en: "✅ <b>Subscription Active</b>"
+  },
+  "subscription.valid_until": {
+    ru: "📅 Действует до:",
+    en: "📅 Valid until:"
+  },
+  "subscription.days_left": {
+    ru: "⏰ Осталось дней:",
+    en: "⏰ Days left:"
+  },
+  "subscription.hours_left": {
+    ru: "⏰ Осталось часов:",
+    en: "⏰ Hours left:"
+  },
+  "subscription.renewal_price": {
+    ru: "💰 Стоимость продления:",
+    en: "💰 Renewal price:"
+  },
+  "subscription.renew_now": {
+    ru: "💡 Вы можете продлить подписку уже сейчас!",
+    en: "💡 You can renew your subscription now!"
+  },
+  "subscription.renew_available_in_7_days": {
+    ru: "💡 Продление станет доступно за 7 дней до окончания.",
+    en: "💡 Renewal will be available 7 days before expiration."
+  },
+  "subscription.trial_active": {
+    ru: "🎁 <b>Триал активен</b>",
+    en: "🎁 <b>Trial Active</b>"
+  },
+  "subscription.trial_tip": {
+    ru: "💡 После окончания триала вы можете оформить подписку за",
+    en: "💡 After the trial ends, you can subscribe for"
+  },
+  "subscription.expired": {
+    ru: "⏰ <b>Ваша подписка окончилась</b>",
+    en: "⏰ <b>Your subscription has expired</b>"
+  },
+  "subscription.expired_at": {
+    ru: "📅 Окончилась:",
+    en: "📅 Expired:"
+  },
+  "subscription.please_renew": {
+    ru: "Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.",
+    en: "Please subscribe to continue receiving signals."
+  },
+  "subscription.trial_expired": {
+    ru: "⏰ <b>Ваш период триал окончен</b>",
+    en: "⏰ <b>Your trial period has ended</b>"
+  },
+  "subscription.trial_ended_at": {
+    ru: "📅 Окончился:",
+    en: "📅 Ended:"
+  },
+  "subscription.please_subscribe_trial": {
+    ru: "Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.",
+    en: "Please subscribe to continue receiving signals."
+  },
+  "subscription.inactive": {
+    ru: "⏰ <b>Подписка не активна</b>",
+    en: "⏰ <b>Subscription Inactive</b>"
+  },
+  "subscription.need_subscribe": {
+    ru: "Для продолжения работы с ботом необходимо оформить подписку.",
+    en: "To continue using the bot, you need to subscribe."
+  },
+  "subscription.price": {
+    ru: "💰 Стоимость:",
+    en: "💰 Price:"
+  },
+  "subscription.crypto_payment": {
+    ru: "💳 Оплата принимается в криптовалюте",
+    en: "💳 Cryptocurrency payment accepted"
+  },
+  "subscription.btn_subscribe": {
+    ru: "💳 Оформить подписку",
+    en: "💳 Subscribe"
+  },
+  "subscription.btn_renew": {
+    ru: "💳 Продлить подписку",
+    en: "💳 Renew Subscription"
+  },
+
+  // Exchange messages
+  "exchange.toggle_status": {
+    ru: "Нажмите на <b>кнопку</b> биржи, чтобы поменять её статус",
+    en: "Click on the exchange <b>button</b> to toggle its status"
+  },
+
+  // Main menu
+  "menu.title": {
+    ru: "<b>Главное меню</b>",
+    en: "<b>Main Menu</b>"
+  },
 };
 
 /**

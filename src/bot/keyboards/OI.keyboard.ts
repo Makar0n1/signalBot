@@ -1,11 +1,11 @@
 import { Markup } from "telegraf";
-import { BACK_ROUTES, OI_ROUTES } from "../utils/CONST";
+import { t, Language } from "../utils/i18n";
 
-const getOIKeyboard = () => {
+const getOIKeyboard = (lang: Language = "en") => {
   const oiKeyboard = Markup.keyboard([
-    [OI_ROUTES.UP_PERIOD, OI_ROUTES.UP_PERCENTEGES],
-    [OI_ROUTES.DOWN_PERIOD, OI_ROUTES.DOWN_PERCENTEGES],
-    [BACK_ROUTES.BACK]
+    [t("keyboard.oi.up_period", lang), t("keyboard.oi.up_percent", lang)],
+    [t("keyboard.oi.down_period", lang), t("keyboard.oi.down_percent", lang)],
+    [t("keyboard.back", lang)]
   ]).resize();
 
   return { oiKeyboard };

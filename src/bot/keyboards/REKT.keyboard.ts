@@ -1,11 +1,10 @@
 import { Markup } from "telegraf";
-import { BACK_ROUTES, REKT_ROUTES } from "../utils/CONST";
+import { t, Language } from "../utils/i18n";
 
-const getREKTKeyboard = () => {
+const getREKTKeyboard = (lang: Language = "en") => {
   const rektKeyboard = Markup.keyboard([
-    [REKT_ROUTES.SET_LIMIT],
-
-    [BACK_ROUTES.BACK]
+    [t("keyboard.rekt.set_limit", lang)],
+    [t("keyboard.back", lang)]
   ]).resize();
 
   return { rektKeyboard };

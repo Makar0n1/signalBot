@@ -215,8 +215,8 @@ class PaymentService {
         if (this.bot) {
           try {
             const user = await User.findOne({ user_id: payment.user_id });
-            const lang: Language = (user?.language_code?.startsWith('ru')) ? 'ru' : 'en';
-            const { mainKeyboard } = getMainKeyboard();
+            const lang: Language = (user?.preferred_language as Language) || ((user?.language_code?.startsWith('ru')) ? 'ru' : 'en');
+            const { mainKeyboard } = getMainKeyboard(lang);
 
             const message = lang === 'ru'
               ? `✅ <b>Платёж получен!</b>\n\nПриятного пользования!\n\n${t('menu.bot_intro', lang)}`

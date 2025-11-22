@@ -1,6 +1,5 @@
 import { Context, Telegraf } from "telegraf";
 
-import { BACK_ROUTES, CANCEL_SCENE, MAIN_ROUTES, OI_ROUTES, PUMP_ROUTES, REKT_ROUTES } from "../utils/CONST";
 import asyncWrapper from "../utils/error-handler";
 import getMainKeyboard from "../keyboards/main.keyboard";
 import getOIKeyboard from "../keyboards/OI.keyboard";
@@ -11,17 +10,61 @@ import { deleteMessageNext } from "../middlewares/deleteMessages.middleware";
 import { getMainOIText, getMainPumpText, getMainREKTText } from "../utils/texts";
 import { isUser } from "../middlewares";
 import getExchangeKeyboard from "../keyboards/Exchange.keyboard";
+import { getUserLanguage, t, tc } from "../utils/i18n";
+
+// Regex patterns for matching keyboard buttons in both languages
+const OI_PATTERN = /^💼 OI Screener$/;
+const PUMP_PATTERN = /^📈 Pump Screener$/;
+const REKT_PATTERN = /^💣 REKT Screener$/;
+const EXCHANGE_PATTERN = /^💹 (Выбор биржи|Exchange)$/;
+const SUBSCRIPTION_PATTERN = /^📱 (Моя подписка|My Subscription)$/;
+const BACK_PATTERN = /^⬅️ (Назад|Back)$/;
+
+// OI keyboard patterns
+const OI_UP_PERIOD_PATTERN = /^📈 (Период роста|Growth Period)$/;
+const OI_DOWN_PERIOD_PATTERN = /^📉 (Период просадки|Decline Period)$/;
+const OI_UP_PERCENT_PATTERN = /^🟩 (Процент роста|Growth %)$/;
+const OI_DOWN_PERCENT_PATTERN = /^🟥 (Процент просадки|Decline %)$/;
+
+// PUMP keyboard patterns
+const PUMP_UP_PERIOD_PATTERN = /^📈 (Период лонг|Long Period)$/;
+const PUMP_DOWN_PERIOD_PATTERN = /^📉 (Период шорт|Short Period)$/;
+const PUMP_UP_PERCENT_PATTERN = /^🟩 (Процент лонг|Long %)$/;
+const PUMP_DOWN_PERCENT_PATTERN = /^🟥 (Процент шорт|Short %)$/;
+
+// REKT keyboard patterns
+const REKT_SET_LIMIT_PATTERN = /^🔻 (Установить минимальную ликвидацию|Set Minimum Liquidation)$/;
+
+// Cancel pattern
+const CANCEL_PATTERN = /^❌ (Отменить|Cancel)$/;
+
+// Helper function to show no access message
+async function showNoAccessMessage(ctx: Context, wasTrialUser: boolean) {
+  const lang = getUserLanguage(ctx);
+  const message = wasTrialUser
+    ? `${t("subscription.trial_expired", lang)}\n\n${t("subscription.please_subscribe_trial", lang)}`
+    : `${t("subscription.expired", lang)}\n\n${t("subscription.please_renew", lang)}`;
+
+  await ctx.replyWithHTML(message, {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }
+      ]]
+    }
+  });
+}
 
 export default function handlers(bot: Telegraf<Context>) {
   // OI screener
   bot.hears(
-    MAIN_ROUTES.OI,
+    OI_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => {
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+      const lang = getUserLanguage(ctx);
 
       if (!user) {
-        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        await ctx.replyWithHTML(tc(ctx, "error.user_not_found"));
         return;
       }
 
@@ -34,21 +77,11 @@ export default function handlers(bot: Telegraf<Context>) {
       // If no access, show subscription message
       if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
         const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
-        const message = wasTrialUser
-          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
-          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
-
-        await ctx.replyWithHTML(message, {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "💳 Оформить подписку", callback_data: "subscribe" }
-            ]]
-          }
-        });
+        await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
 
-      const { oiKeyboard } = getOIKeyboard();
+      const { oiKeyboard } = getOIKeyboard(lang);
       const oiText = getMainOIText(user.config);
       await ctx.replyWithHTML(oiText, oiKeyboard);
     })
@@ -56,13 +89,14 @@ export default function handlers(bot: Telegraf<Context>) {
 
   // PUMP screener
   bot.hears(
-    MAIN_ROUTES.PUMP,
+    PUMP_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => {
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+      const lang = getUserLanguage(ctx);
 
       if (!user) {
-        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        await ctx.replyWithHTML(tc(ctx, "error.user_not_found"));
         return;
       }
 
@@ -75,21 +109,11 @@ export default function handlers(bot: Telegraf<Context>) {
       // If no access, show subscription message
       if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
         const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
-        const message = wasTrialUser
-          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
-          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
-
-        await ctx.replyWithHTML(message, {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "💳 Оформить подписку", callback_data: "subscribe" }
-            ]]
-          }
-        });
+        await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
 
-      const { pumpKeyboard } = getPUMPKeyboard();
+      const { pumpKeyboard } = getPUMPKeyboard(lang);
       const pumpText = getMainPumpText(user.config);
 
       await ctx.replyWithHTML(pumpText, pumpKeyboard);
@@ -98,10 +122,11 @@ export default function handlers(bot: Telegraf<Context>) {
 
   // REKT screener
   bot.hears(
-    MAIN_ROUTES.REKT,
+    REKT_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context, next: Function) => {
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+      const lang = getUserLanguage(ctx);
 
       if (!user?.config) {
         return next();
@@ -116,21 +141,11 @@ export default function handlers(bot: Telegraf<Context>) {
       // If no access, show subscription message
       if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
         const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
-        const message = wasTrialUser
-          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
-          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
-
-        await ctx.replyWithHTML(message, {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "💳 Оформить подписку", callback_data: "subscribe" }
-            ]]
-          }
-        });
+        await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
 
-      const { rektKeyboard } = getREKTKeyboard();
+      const { rektKeyboard } = getREKTKeyboard(lang);
       const rektText = getMainREKTText(user.config);
       await ctx.replyWithHTML(rektText, rektKeyboard);
     })
@@ -138,10 +153,11 @@ export default function handlers(bot: Telegraf<Context>) {
 
   // Exchanges
   bot.hears(
-    MAIN_ROUTES.Exchange,
+    EXCHANGE_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context, next: Function) => {
       const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
+      const lang = getUserLanguage(ctx);
 
       if (!user?.config) {
         return next();
@@ -156,23 +172,13 @@ export default function handlers(bot: Telegraf<Context>) {
       // If no access, show subscription message
       if (!isAdmin && !hasActiveSubscription && !hasActiveTrial) {
         const wasTrialUser = user.trial_started_at !== null && user.trial_started_at !== undefined;
-        const message = wasTrialUser
-          ? "⏰ <b>Ваш период триал окончен</b>\n\nПожалуйста, оплатите подписку, чтобы вновь получать сигналы."
-          : "⏰ <b>Ваша подписка окончилась</b>\n\nПожалуйста, продлите подписку, чтобы продолжить получать сигналы.";
-
-        await ctx.replyWithHTML(message, {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "💳 Оформить подписку", callback_data: "subscribe" }
-            ]]
-          }
-        });
+        await showNoAccessMessage(ctx, wasTrialUser);
         return;
       }
 
       const { exchangeKeyboard } = getExchangeKeyboard(user?.config.exchange, user?.config.id);
 
-      await ctx.replyWithHTML("Нажмите на <b>кнопку</b> биржи, чтобы поменять её статус", {
+      await ctx.replyWithHTML(t("exchange.toggle_status", lang), {
         reply_markup: exchangeKeyboard,
       });
     })
@@ -180,13 +186,16 @@ export default function handlers(bot: Telegraf<Context>) {
 
   // My Subscription
   bot.hears(
-    MAIN_ROUTES.Subscription,
+    SUBSCRIPTION_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => {
       const user = await User.findOne({ user_id: ctx.message?.from.id });
+      const lang = getUserLanguage(ctx);
+      const locale = lang === 'ru' ? 'ru-RU' : 'en-US';
+      const price = process.env.SUBSCRIPTION_PRICE_USD || "25";
 
       if (!user) {
-        await ctx.replyWithHTML("❌ <b>Ошибка: пользователь не найден</b>");
+        await ctx.replyWithHTML(tc(ctx, "error.user_not_found"));
         return;
       }
 
@@ -195,8 +204,14 @@ export default function handlers(bot: Telegraf<Context>) {
       // Check if user is admin
       if (user.is_admin) {
         await ctx.replyWithHTML(
-          `👑 <b>Статус подписки: Администратор</b>\n\n` +
-          `У вас полный неограниченный доступ ко всем функциям бота!`
+          t("subscription.admin_status", lang),
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: t("btn.language", lang), callback_data: "select_language" }
+              ]]
+            }
+          }
         );
         return;
       }
@@ -204,23 +219,21 @@ export default function handlers(bot: Telegraf<Context>) {
       // Check if user has active subscription
       if (user.subscription_active && user.subscription_expires_at && user.subscription_expires_at > now) {
         const daysLeft = Math.ceil((user.subscription_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
         const canRenew = daysLeft <= 7;
 
-        await ctx.replyWithHTML(
-          `✅ <b>Подписка активна</b>\n\n` +
-          `📅 Действует до: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n` +
-          `⏰ Осталось дней: <b>${daysLeft}</b>\n\n` +
-          `💰 Стоимость продления: <b>$25/месяц</b>` +
-          (canRenew ? "\n\n💡 Вы можете продлить подписку уже сейчас!" : "\n\n💡 Продление станет доступно за 7 дней до окончания."),
-          canRenew ? {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: "💳 Продлить подписку", callback_data: "subscribe" }
-              ]]
-            }
-          } : undefined
-        );
+        const message = `${t("subscription.active", lang)}\n\n` +
+          `${t("subscription.valid_until", lang)} <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n` +
+          `${t("subscription.days_left", lang)} <b>${daysLeft}</b>\n\n` +
+          `${t("subscription.renewal_price", lang)} <b>$${price}/${lang === 'ru' ? 'месяц' : 'month'}</b>` +
+          (canRenew ? `\n\n${t("subscription.renew_now", lang)}` : `\n\n${t("subscription.renew_available_in_7_days", lang)}`);
+
+        const buttons = canRenew
+          ? [[{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }], [{ text: t("btn.language", lang), callback_data: "select_language" }]]
+          : [[{ text: t("btn.language", lang), callback_data: "select_language" }]];
+
+        await ctx.replyWithHTML(message, {
+          reply_markup: { inline_keyboard: buttons }
+        });
         return;
       }
 
@@ -229,15 +242,16 @@ export default function handlers(bot: Telegraf<Context>) {
         const hoursLeft = Math.ceil((user.trial_expires_at.getTime() - now.getTime()) / (1000 * 60 * 60));
 
         await ctx.replyWithHTML(
-          `🎁 <b>Триал активен</b>\n\n` +
-          `📅 Действует до: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n` +
-          `⏰ Осталось часов: <b>${hoursLeft}</b>\n\n` +
-          `💡 После окончания триала вы можете оформить подписку за <b>$25/месяц</b>`,
+          `${t("subscription.trial_active", lang)}\n\n` +
+          `${t("subscription.valid_until", lang)} <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n` +
+          `${t("subscription.hours_left", lang)} <b>${hoursLeft}</b>\n\n` +
+          `${t("subscription.trial_tip", lang)} <b>$${price}/${lang === 'ru' ? 'месяц' : 'month'}</b>`,
           {
             reply_markup: {
-              inline_keyboard: [[
-                { text: "💳 Оформить подписку", callback_data: "subscribe" }
-              ]]
+              inline_keyboard: [
+                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
+                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+              ]
             }
           }
         );
@@ -247,16 +261,17 @@ export default function handlers(bot: Telegraf<Context>) {
       // Check if subscription has expired
       if (user.subscription_expires_at && user.subscription_expires_at <= now) {
         await ctx.replyWithHTML(
-          `⏰ <b>Ваша подписка окончилась</b>\n\n` +
-          `📅 Окончилась: <code>${user.subscription_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
-          `Пожалуйста, оплатите подписку, чтобы продолжить получать сигналы.\n\n` +
-          `💰 Стоимость: <b>$25/месяц</b>\n` +
-          `💳 Оплата принимается в криптовалюте`,
+          `${t("subscription.expired", lang)}\n\n` +
+          `${t("subscription.expired_at", lang)} <code>${user.subscription_expires_at.toLocaleString(locale)}</code>\n\n` +
+          `${t("subscription.please_renew", lang)}\n\n` +
+          `${t("subscription.price", lang)} <b>$${price}/${lang === 'ru' ? 'месяц' : 'month'}</b>\n` +
+          `${t("subscription.crypto_payment", lang)}`,
           {
             reply_markup: {
-              inline_keyboard: [[
-                { text: "💳 Продлить подписку", callback_data: "subscribe" }
-              ]]
+              inline_keyboard: [
+                [{ text: t("subscription.btn_renew", lang), callback_data: "subscribe" }],
+                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+              ]
             }
           }
         );
@@ -266,16 +281,17 @@ export default function handlers(bot: Telegraf<Context>) {
       // Check if trial has expired
       if (user.trial_expires_at && user.trial_expires_at <= now) {
         await ctx.replyWithHTML(
-          `⏰ <b>Ваш период триал окончен</b>\n\n` +
-          `📅 Окончился: <code>${user.trial_expires_at.toLocaleString('ru-RU')}</code>\n\n` +
-          `Пожалуйста, оплатите подписку, чтобы вновь получать сигналы.\n\n` +
-          `💰 Стоимость: <b>$25/месяц</b>\n` +
-          `💳 Оплата принимается в криптовалюте`,
+          `${t("subscription.trial_expired", lang)}\n\n` +
+          `${t("subscription.trial_ended_at", lang)} <code>${user.trial_expires_at.toLocaleString(locale)}</code>\n\n` +
+          `${t("subscription.please_subscribe_trial", lang)}\n\n` +
+          `${t("subscription.price", lang)} <b>$${price}/${lang === 'ru' ? 'месяц' : 'month'}</b>\n` +
+          `${t("subscription.crypto_payment", lang)}`,
           {
             reply_markup: {
-              inline_keyboard: [[
-                { text: "💳 Оформить подписку", callback_data: "subscribe" }
-              ]]
+              inline_keyboard: [
+                [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
+                [{ text: t("btn.language", lang), callback_data: "select_language" }]
+              ]
             }
           }
         );
@@ -284,93 +300,87 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // No active subscription or trial - new user
       await ctx.replyWithHTML(
-        `⏰ <b>Подписка не активна</b>\n\n` +
-        `Для продолжения работы с ботом необходимо оформить подписку.\n\n` +
-        `💰 Стоимость: <b>$25/месяц</b>\n` +
-        `💳 Оплата принимается в криптовалюте`,
+        `${t("subscription.inactive", lang)}\n\n` +
+        `${t("subscription.need_subscribe", lang)}\n\n` +
+        `${t("subscription.price", lang)} <b>$${price}/${lang === 'ru' ? 'месяц' : 'month'}</b>\n` +
+        `${t("subscription.crypto_payment", lang)}`,
         {
           reply_markup: {
-            inline_keyboard: [[
-              { text: "💳 Оформить подписку", callback_data: "subscribe" }
-            ]]
+            inline_keyboard: [
+              [{ text: t("subscription.btn_subscribe", lang), callback_data: "subscribe" }],
+              [{ text: t("btn.language", lang), callback_data: "select_language" }]
+            ]
           }
         }
       );
     })
   );
 
-  // PUMP screener
+  // Back button
   bot.hears(
-    BACK_ROUTES.BACK,
+    BACK_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => {
-      const { mainKeyboard } = getMainKeyboard();
+      const lang = getUserLanguage(ctx);
+      const { mainKeyboard } = getMainKeyboard(lang);
 
-      await ctx.replyWithHTML("<b>Главное меню</b>", mainKeyboard);
+      await ctx.replyWithHTML(t("menu.title", lang), mainKeyboard);
     })
   );
 
-  // 📈 Период роста OI
+  // OI settings handlers
   bot.hears(
-    OI_ROUTES.UP_PERIOD,
+    OI_UP_PERIOD_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetOI"))
   );
 
-  // 📉 Период просадки
   bot.hears(
-    OI_ROUTES.DOWN_PERIOD,
+    OI_DOWN_PERIOD_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetOI"))
   );
 
-  // 🟩 Процент роста
   bot.hears(
-    OI_ROUTES.UP_PERCENTEGES,
+    OI_UP_PERCENT_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetOI"))
   );
 
-  // 🟥 Процент просадки
   bot.hears(
-    OI_ROUTES.DOWN_PERCENTEGES,
+    OI_DOWN_PERCENT_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetOI"))
   );
 
-  // Pump
-
-  // 📈 Период лонг
+  // PUMP settings handlers
   bot.hears(
-    PUMP_ROUTES.UP_PERIOD,
+    PUMP_UP_PERIOD_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetPUMP"))
   );
 
-  // 📉 Период шорт
   bot.hears(
-    PUMP_ROUTES.DOWN_PERIOD,
+    PUMP_DOWN_PERIOD_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetPUMP"))
   );
 
-  // 🟩 Процент лонг
   bot.hears(
-    PUMP_ROUTES.UP_PERCENTEGES,
+    PUMP_UP_PERCENT_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetPUMP"))
   );
 
-  // 🟥 Процент шорт
   bot.hears(
-    PUMP_ROUTES.DOWN_PERCENTEGES,
+    PUMP_DOWN_PERCENT_PATTERN,
     isUser,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetPUMP"))
   );
 
-  // 🟥 Процент шорт
+  // Cancel button
   bot.hears(
-    CANCEL_SCENE,
+    CANCEL_PATTERN,
     isUser,
     deleteMessageNext,
     asyncWrapper(async (ctx: Context) => {
@@ -378,9 +388,9 @@ export default function handlers(bot: Telegraf<Context>) {
     })
   );
 
-  // Ликвадация настройка
+  // REKT settings
   bot.hears(
-    REKT_ROUTES.SET_LIMIT,
+    REKT_SET_LIMIT_PATTERN,
     isUser,
     deleteMessageNext,
     asyncWrapper(async (ctx: Context) => await ctx.scene.enter("SetREKT"))

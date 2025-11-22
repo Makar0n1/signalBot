@@ -2,43 +2,48 @@ import { Composer, Scenes } from "telegraf";
 import { message } from "telegraf/filters";
 import { WizardContext } from "telegraf/typings/scenes";
 
-import { CANCEL_SCENE, PUMP_ROUTES, REKT_ROUTES, SESSION_FIELDS } from "../../utils/CONST";
+import { REKT_ROUTES, SESSION_FIELDS } from "../../utils/CONST";
 import { deleteFromSession, saveToSession } from "../../utils/session";
 import isNumeric from "../../utils/isNumeric";
 import deleteMessages from "../../utils/deleteMessages";
-import { isValidOIPercenteges, isValidOIPeriod } from "../../utils/validateData";
 import asyncWrapper from "../../utils/error-handler";
-import { getMainPumpText, getMainREKTText } from "../../utils/texts";
+import { getMainREKTText } from "../../utils/texts";
 
-import getPUMPKeyboard from "../../keyboards/PUMP.keyboard";
-import getCancelKeyboard from "../../keyboards/main.keyboard";
+import { getCancelKeyboard } from "../../keyboards/main.keyboard";
 import Config, { IConfig } from "../../models/Config";
 import { deleteMessageNext } from "../../middlewares/deleteMessages.middleware";
 import getREKTKeyboard from "../../keyboards/REKT.keyboard";
-import  {User, IUser } from "../../models";
+import { User, IUser } from "../../models";
+import { getUserLanguage } from "../../utils/i18n";
+
+// Regex patterns for matching keyboard buttons in both languages
+const REKT_SET_LIMIT_PATTERN = /^🔻 (Установить минимальную ликвидацию|Set min liquidation)$/;
+const CANCEL_PATTERN = /^❌ (Отменить|Cancel)$/;
 
 const sendMessage = new Composer<WizardContext>();
-sendMessage.hears(REKT_ROUTES.SET_LIMIT, async (ctx: WizardContext) => {
+sendMessage.hears(REKT_SET_LIMIT_PATTERN, async (ctx: WizardContext) => {
   const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
-  const { cancelKeyboard } = getCancelKeyboard();
-  await ctx.replyWithHTML(
-    `🔻 <b>Текущая минимальная ликвидация - ${user.config.rekt_limit}$</b>\n\nВведи новую: от 1000$`,
-    cancelKeyboard
-  );
-  saveToSession(ctx, 'userInfo', user)
+  const lang = getUserLanguage(ctx);
+  const { cancelKeyboard } = getCancelKeyboard(lang);
+  const msg = lang === 'ru'
+    ? `🔻 <b>Текущая минимальная ликвидация - ${user.config.rekt_limit}$</b>\n\nВведи новую: от 1000$`
+    : `🔻 <b>Current minimum liquidation - ${user.config.rekt_limit}$</b>\n\nEnter new value: from 1000$`;
+  await ctx.replyWithHTML(msg, cancelKeyboard);
+  saveToSession(ctx, 'userInfo', user);
   saveToSession(ctx, SESSION_FIELDS.CHANGE, REKT_ROUTES.SET_LIMIT);
   await ctx.wizard.next();
 });
 
 const changeREKTParam = new Composer();
 changeREKTParam.hears(
-  CANCEL_SCENE,
+  CANCEL_PATTERN,
   deleteMessageNext,
   asyncWrapper(async (ctx: WizardContext) => {
-    const { rektKeyboard } = getREKTKeyboard();
+    const lang = getUserLanguage(ctx);
+    const { rektKeyboard } = getREKTKeyboard(lang);
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
     const rektText = getMainREKTText(user.config);
-    await ctx.replyWithHTML("<b>❌ Отмена действия</b>");
+    await ctx.replyWithHTML(lang === 'ru' ? "<b>❌ Отмена действия</b>" : "<b>❌ Action cancelled</b>");
     await ctx.replyWithHTML(rektText, rektKeyboard);
     return await ctx.scene.leave();
   })
@@ -48,26 +53,25 @@ changeREKTParam.on(
   message("text"),
   async (ctx: WizardContext, next) => {
     const num: string = ctx.message.text;
-    
-    let res;
-    const { rektKeyboard } = getREKTKeyboard();
+    const lang = getUserLanguage(ctx);
+    const { rektKeyboard } = getREKTKeyboard(lang);
 
     if (!isNumeric(num)) {
-      await ctx.replyWithHTML(`<b>Введите число!</b>`);
-
+      await ctx.replyWithHTML(lang === 'ru' ? `<b>Введите число!</b>` : `<b>Enter a number!</b>`);
       return;
     }
 
     switch (ctx.session[SESSION_FIELDS.CHANGE]) {
       case REKT_ROUTES.SET_LIMIT:
         if (Number(num) < 1000) {
-          await ctx.replyWithHTML(`<b>Число должно быть >= 1000</b>`);
-
+          await ctx.replyWithHTML(lang === 'ru' ? `<b>Число должно быть >= 1000</b>` : `<b>Number must be >= 1000</b>`);
           return;
         }
-
-        res = await Config.updateOne({ _id: ctx.session['userInfo'].config._id }, { rekt_limit: num });
-        await ctx.replyWithHTML(`<b>Успешно изменена минимальная ликвидация, теперь равна - ${num}$</b>`, rektKeyboard);
+        await Config.updateOne({ _id: ctx.session['userInfo'].config._id }, { rekt_limit: num });
+        await ctx.replyWithHTML(
+          lang === 'ru' ? `<b>Успешно изменена минимальная ликвидация, теперь равна - ${num}$</b>` : `<b>Minimum liquidation changed to ${num}$</b>`,
+          rektKeyboard
+        );
         break;
     }
 
