@@ -3,12 +3,12 @@ import { Context, Telegraf } from "telegraf";
 import { ACTIONS } from "../utils/CONST.js";
 import asyncWrapper from "../utils/error-handler";
 import { deleteMessageNext } from "../middlewares/deleteMessages.middleware.js";
-import { isUser } from "../middlewares/role.middleware.js";
 import Config, { Exchange } from "../models/Config.js";
 import getExchangeKeyboard from "../keyboards/Exchange.keyboard.js";
 import { CallbackQuery, Update } from "telegraf/typings/core/types/typegram.js";
-import { GetUpdateContent } from "telegraf/typings/context.js";
 import { ObjectId } from "mongodb";
+import getMainKeyboard from "../keyboards/main.keyboard.js";
+import { getUserLanguage } from "../utils/i18n.js";
 
 export default function handler(bot: Telegraf<Context>) {
   // Empty task
@@ -58,10 +58,36 @@ export default function handler(bot: Telegraf<Context>) {
         return next();
       }
 
-      const { exchangeKeyboard } = getExchangeKeyboard(newConfig.exchange, newConfig.id);
+      const lang = getUserLanguage(ctx);
+      const { exchangeKeyboard } = getExchangeKeyboard(newConfig.exchange, newConfig.id, lang);
 
       await ctx.editMessageReplyMarkup(exchangeKeyboard);
       await ctx.answerCbQuery();
+    })
+  );
+
+  // Close exchange settings and return to main menu
+  bot.action(
+    "close_exchange",
+    asyncWrapper(async (ctx: Context<Update.CallbackQueryUpdate<CallbackQuery.DataQuery>>) => {
+      await ctx.answerCbQuery();
+
+      // Delete the exchange settings message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      // Show main keyboard
+      const lang = getUserLanguage(ctx);
+      const { mainKeyboard } = getMainKeyboard(lang);
+
+      // Send invisible message to update keyboard
+      const msg = await ctx.replyWithHTML("​", mainKeyboard);
+      setTimeout(async () => {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
+        } catch (e) {}
+      }, 100);
     })
   );
 }

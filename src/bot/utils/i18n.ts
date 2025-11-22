@@ -271,6 +271,12 @@ const translations: Translations = {
     en: "❌ Cancel"
   },
 
+  // Language button in main keyboard
+  "keyboard.language": {
+    ru: "🌐 Язык / Language",
+    en: "🌐 Language / Язык"
+  },
+
   // Subscription messages
   "subscription.admin_status": {
     ru: "👑 <b>Статус подписки: Администратор</b>\n\nУ вас полный неограниченный доступ ко всем функциям бота!",

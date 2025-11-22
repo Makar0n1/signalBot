@@ -4,7 +4,8 @@ import { t, Language } from "../utils/i18n";
 const getMainKeyboard = (lang: Language = "en") => {
   const mainKeyboard = Markup.keyboard([
     [t("keyboard.oi", lang), t("keyboard.pump", lang), t("keyboard.rekt", lang)],
-    [t("keyboard.exchange", lang), t("keyboard.subscription", lang)]
+    [t("keyboard.exchange", lang), t("keyboard.subscription", lang)],
+    [t("keyboard.language", lang)]
   ]).resize();
 
   return { mainKeyboard };

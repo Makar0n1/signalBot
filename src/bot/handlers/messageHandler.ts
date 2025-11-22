@@ -19,6 +19,7 @@ const REKT_PATTERN = /^💣 REKT Screener$/;
 const EXCHANGE_PATTERN = /^💹 (Выбор биржи|Exchange)$/;
 const SUBSCRIPTION_PATTERN = /^📱 (Моя подписка|My Subscription)$/;
 const BACK_PATTERN = /^⬅️ (Назад|Back)$/;
+const LANGUAGE_PATTERN = /^🌐 (Язык \/ Language|Language \/ Язык)$/;
 
 // OI keyboard patterns
 const OI_UP_PERIOD_PATTERN = /^📈 (Период роста|Growth Period)$/;
@@ -176,7 +177,12 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
-      const { exchangeKeyboard } = getExchangeKeyboard(user?.config.exchange, user?.config.id);
+      const { exchangeKeyboard } = getExchangeKeyboard(user?.config.exchange, user?.config.id, lang);
+
+      // Delete user's button message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
       await ctx.replyWithHTML(t("exchange.toggle_status", lang), {
         reply_markup: exchangeKeyboard,
@@ -316,7 +322,7 @@ export default function handlers(bot: Telegraf<Context>) {
     })
   );
 
-  // Back button
+  // Back button - just change keyboard, delete user's message
   bot.hears(
     BACK_PATTERN,
     isUser,
@@ -324,7 +330,42 @@ export default function handlers(bot: Telegraf<Context>) {
       const lang = getUserLanguage(ctx);
       const { mainKeyboard } = getMainKeyboard(lang);
 
-      await ctx.replyWithHTML(t("menu.title", lang), mainKeyboard);
+      // Delete user's button press message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      // Send invisible message to change keyboard (using zero-width space)
+      const msg = await ctx.replyWithHTML("​", mainKeyboard);
+      // Delete the invisible message after keyboard is set
+      setTimeout(async () => {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
+        } catch (e) {}
+      }, 100);
+    })
+  );
+
+  // Language selection from main keyboard
+  bot.hears(
+    LANGUAGE_PATTERN,
+    isUser,
+    asyncWrapper(async (ctx: Context) => {
+      const lang = getUserLanguage(ctx);
+
+      // Delete user's button press message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      await ctx.replyWithHTML(t("language.select", lang), {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🇷🇺 Русский", callback_data: "set_lang_ru" }],
+            [{ text: "🇺🇸 English", callback_data: "set_lang_en" }]
+          ]
+        }
+      });
     })
   );
 
