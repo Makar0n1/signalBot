@@ -143,7 +143,7 @@ changeOIParam.hears(
 
     // Get updated user config and show OI menu
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate("config");
-    const oiText = getMainOIText(user!.config);
+    const oiText = getMainOIText(user!.config, lang);
     await ctx.replyWithHTML(oiText, oiKeyboard);
 
     return await ctx.scene.leave();
@@ -219,7 +219,7 @@ changeOIParam.on(
 
     // Get updated user config and show OI menu with updated settings
     const user = await User.findOne({ user_id: ctx.message.from.id }).populate("config");
-    const oiText = getMainOIText(user!.config);
+    const oiText = getMainOIText(user!.config, lang);
 
     // Send success notification that auto-deletes after 2 seconds
     const successNotif = await ctx.replyWithHTML(successMsg);

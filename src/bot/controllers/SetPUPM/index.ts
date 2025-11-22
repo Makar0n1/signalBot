@@ -139,7 +139,7 @@ changePUMPParam.hears(
 
     // Get updated user config and show PUMP menu
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
-    const pumpText = getMainPumpText(user!.config);
+    const pumpText = getMainPumpText(user!.config, lang);
     await ctx.replyWithHTML(pumpText, pumpKeyboard);
 
     return await ctx.scene.leave();
@@ -211,7 +211,7 @@ changePUMPParam.on(
 
     // Get updated user config and show PUMP menu
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
-    const pumpText = getMainPumpText(user!.config);
+    const pumpText = getMainPumpText(user!.config, lang);
 
     // Send success notification that auto-deletes after 2 seconds
     const successNotif = await ctx.replyWithHTML(successMsg);

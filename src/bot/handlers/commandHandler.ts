@@ -110,7 +110,19 @@ export default function handlers(bot: Telegraf<Context>) {
   bot.action("select_language", async (ctx) => {
     try {
       await ctx.answerCbQuery();
+      const { User } = await import("../models/index.js");
 
+      const userId = ctx.from?.id;
+      if (!userId) return;
+
+      const user = await User.findOne({ user_id: userId });
+      const now = new Date();
+      const hasAccess = user?.is_admin ||
+        (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) ||
+        (user?.trial_expires_at && user.trial_expires_at > now);
+
+      // For users with access, don't show back_to_start button (which goes to welcome page)
+      // Instead show a simple language selection
       await ctx.editMessageText(
         tc(ctx, "language.select"),
         {
@@ -121,7 +133,7 @@ export default function handlers(bot: Telegraf<Context>) {
                 { text: "🇺🇸 English", callback_data: "set_lang_en" },
                 { text: "🇷🇺 Русский", callback_data: "set_lang_ru" }
               ],
-              [{ text: tc(ctx, "btn.back"), callback_data: "back_to_start" }]
+              ...(hasAccess ? [] : [[{ text: tc(ctx, "btn.back"), callback_data: "back_to_start" }]])
             ]
           }
         }
@@ -149,18 +161,25 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check user status and show appropriate message
       if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-        // User has access - delete message and update keyboard
+        // User has access - delete inline message and show confirmation with main keyboard
         try {
           await ctx.deleteMessage();
         } catch (e) {}
 
         const { mainKeyboard } = getMainKeyboard("en");
-        await ctx.replyWithHTML(
+        const msg = await ctx.replyWithHTML(
           t("language.changed", "en"),
           mainKeyboard
         );
+
+        // Auto-delete confirmation message after 2 seconds
+        setTimeout(async () => {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
+          } catch (e) {}
+        }, 2000);
       } else {
-        // Show welcome message with updated language after 1 second
+        // Guest user - show welcome message with updated language after 1 second
         await ctx.editMessageText(
           t("language.changed", "en"),
           { parse_mode: "HTML" }
@@ -219,18 +238,25 @@ export default function handlers(bot: Telegraf<Context>) {
 
       // Check user status and show appropriate message
       if (user?.is_admin || (user?.subscription_active && user?.subscription_expires_at && user.subscription_expires_at > now) || (user?.trial_expires_at && user.trial_expires_at > now)) {
-        // User has access - delete message and update keyboard
+        // User has access - delete inline message and show confirmation with main keyboard
         try {
           await ctx.deleteMessage();
         } catch (e) {}
 
         const { mainKeyboard } = getMainKeyboard("ru");
-        await ctx.replyWithHTML(
+        const msg = await ctx.replyWithHTML(
           t("language.changed", "ru"),
           mainKeyboard
         );
+
+        // Auto-delete confirmation message after 2 seconds
+        setTimeout(async () => {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
+          } catch (e) {}
+        }, 2000);
       } else {
-        // Show welcome message with updated language after 1 second
+        // Guest user - show welcome message with updated language after 1 second
         await ctx.editMessageText(
           t("language.changed", "ru"),
           { parse_mode: "HTML" }

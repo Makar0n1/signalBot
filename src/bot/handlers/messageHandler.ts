@@ -83,7 +83,7 @@ export default function handlers(bot: Telegraf<Context>) {
       }
 
       const { oiKeyboard } = getOIKeyboard(lang);
-      const oiText = getMainOIText(user.config);
+      const oiText = getMainOIText(user.config, lang);
       await ctx.replyWithHTML(oiText, oiKeyboard);
     })
   );
@@ -115,7 +115,7 @@ export default function handlers(bot: Telegraf<Context>) {
       }
 
       const { pumpKeyboard } = getPUMPKeyboard(lang);
-      const pumpText = getMainPumpText(user.config);
+      const pumpText = getMainPumpText(user.config, lang);
 
       await ctx.replyWithHTML(pumpText, pumpKeyboard);
     })
@@ -147,7 +147,7 @@ export default function handlers(bot: Telegraf<Context>) {
       }
 
       const { rektKeyboard } = getREKTKeyboard(lang);
-      const rektText = getMainREKTText(user.config);
+      const rektText = getMainREKTText(user.config, lang);
       await ctx.replyWithHTML(rektText, rektKeyboard);
     })
   );
@@ -322,7 +322,7 @@ export default function handlers(bot: Telegraf<Context>) {
     })
   );
 
-  // Back button - just change keyboard, delete user's message
+  // Back button - return to main menu
   bot.hears(
     BACK_PATTERN,
     isUser,
@@ -335,14 +335,8 @@ export default function handlers(bot: Telegraf<Context>) {
         await ctx.deleteMessage();
       } catch (e) {}
 
-      // Send invisible message to change keyboard (using zero-width space)
-      const msg = await ctx.replyWithHTML("​", mainKeyboard);
-      // Delete the invisible message after keyboard is set
-      setTimeout(async () => {
-        try {
-          await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id);
-        } catch (e) {}
-      }, 100);
+      // Show main menu with main keyboard
+      await ctx.replyWithHTML(t("menu.bot_intro", lang), mainKeyboard);
     })
   );
 

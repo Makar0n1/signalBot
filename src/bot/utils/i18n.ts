@@ -378,6 +378,76 @@ const translations: Translations = {
     ru: "<b>Главное меню</b>",
     en: "<b>Main Menu</b>"
   },
+
+  // Screener texts - OI
+  "screener.oi.title": {
+    ru: "<b>🤖 Я сканирую рынок на предмет роста Open Interest</b>",
+    en: "<b>🤖 I scan the market for Open Interest growth</b>"
+  },
+  "screener.oi.settings": {
+    ru: "<i>Текущие настройки:</i>",
+    en: "<i>Current settings:</i>"
+  },
+  "screener.oi.growth_period": {
+    ru: "📈 Период роста:",
+    en: "📈 Growth period:"
+  },
+  "screener.oi.growth_percent": {
+    ru: "🟩 Процент роста:",
+    en: "🟩 Growth percentage:"
+  },
+  "screener.oi.decline_period": {
+    ru: "📉 Период просадки:",
+    en: "📉 Decline period:"
+  },
+  "screener.oi.decline_percent": {
+    ru: "🟥 Процент просадки:",
+    en: "🟥 Decline percentage:"
+  },
+  "screener.min": {
+    ru: "мин",
+    en: "min"
+  },
+
+  // Screener texts - PUMP
+  "screener.pump.title": {
+    ru: "<b>🤖 Я сканирую рынок на маленькие пампы, чтобы искать точки входа в ЛОНГ 📈 и большие пампы, чтобы искать точки входа в ШОРТ 📉</b>",
+    en: "<b>🤖 I scan the market for small pumps to find LONG entry points 📈 and big pumps to find SHORT entry points 📉</b>"
+  },
+  "screener.pump.settings": {
+    ru: "<i>Текущие настройки:</i>",
+    en: "<i>Current settings:</i>"
+  },
+  "screener.pump.growth_period": {
+    ru: "📈 Период роста:",
+    en: "📈 Growth period:"
+  },
+  "screener.pump.growth_percent": {
+    ru: "🟩 Процент роста:",
+    en: "🟩 Growth percentage:"
+  },
+  "screener.pump.decline_period": {
+    ru: "📉 Период просадки:",
+    en: "📉 Decline period:"
+  },
+  "screener.pump.decline_percent": {
+    ru: "🟥 Процент просадки:",
+    en: "🟥 Decline percentage:"
+  },
+
+  // Screener texts - REKT
+  "screener.rekt.title": {
+    ru: "<b>🤖 Я сканирую рынок на ликвидации.</b>",
+    en: "<b>🤖 I scan the market for liquidations.</b>"
+  },
+  "screener.rekt.settings": {
+    ru: "Текущие настройки:",
+    en: "Current settings:"
+  },
+  "screener.rekt.limit": {
+    ru: "🔻 Лимит минимальной ликвидации:",
+    en: "🔻 Minimum liquidation limit:"
+  },
 };
 
 /**

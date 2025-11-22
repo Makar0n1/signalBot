@@ -81,7 +81,7 @@ changeREKTParam.hears(
 
     // Get updated user config and show REKT menu
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
-    const rektText = getMainREKTText(user!.config);
+    const rektText = getMainREKTText(user!.config, lang);
     await ctx.replyWithHTML(rektText, rektKeyboard);
 
     return await ctx.scene.leave();
@@ -124,7 +124,7 @@ changeREKTParam.on(
 
     // Get updated user config and show REKT menu
     const user = await User.findOne({ user_id: ctx.message?.from.id }).populate('config');
-    const rektText = getMainREKTText(user!.config);
+    const rektText = getMainREKTText(user!.config, lang);
 
     // Send success notification that auto-deletes after 2 seconds
     const successNotif = await ctx.replyWithHTML(successMsg);
