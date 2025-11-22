@@ -33,6 +33,7 @@ export interface IUser extends Document {
   // UI state fields
   in_settings_mode?: boolean;
   pinned_expiry_message_id?: number;
+  settings_message_id?: number;
 }
 
 export const UserSchema = new mongoose.Schema({
@@ -58,6 +59,7 @@ export const UserSchema = new mongoose.Schema({
   // UI state fields
   in_settings_mode: { type: Boolean, default: false },
   pinned_expiry_message_id: { type: Number },
+  settings_message_id: { type: Number },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

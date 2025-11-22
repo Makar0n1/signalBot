@@ -82,12 +82,20 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
-      // Pause signals while in settings
-      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
+      // Delete user's button press message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
       const { oiKeyboard } = getOIKeyboard(lang);
       const oiText = getMainOIText(user.config, lang);
-      await ctx.replyWithHTML(oiText, oiKeyboard);
+      const sentMessage = await ctx.replyWithHTML(oiText, oiKeyboard);
+
+      // Pause signals while in settings and save settings message ID
+      await User.updateOne({ user_id: ctx.message?.from.id }, {
+        in_settings_mode: true,
+        settings_message_id: sentMessage.message_id
+      });
     })
   );
 
@@ -117,13 +125,20 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
-      // Pause signals while in settings
-      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
+      // Delete user's button press message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
       const { pumpKeyboard } = getPUMPKeyboard(lang);
       const pumpText = getMainPumpText(user.config, lang);
+      const sentMessage = await ctx.replyWithHTML(pumpText, pumpKeyboard);
 
-      await ctx.replyWithHTML(pumpText, pumpKeyboard);
+      // Pause signals while in settings and save settings message ID
+      await User.updateOne({ user_id: ctx.message?.from.id }, {
+        in_settings_mode: true,
+        settings_message_id: sentMessage.message_id
+      });
     })
   );
 
@@ -152,12 +167,20 @@ export default function handlers(bot: Telegraf<Context>) {
         return;
       }
 
-      // Pause signals while in settings
-      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: true });
+      // Delete user's button press message
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
       const { rektKeyboard } = getREKTKeyboard(lang);
       const rektText = getMainREKTText(user.config, lang);
-      await ctx.replyWithHTML(rektText, rektKeyboard);
+      const sentMessage = await ctx.replyWithHTML(rektText, rektKeyboard);
+
+      // Pause signals while in settings and save settings message ID
+      await User.updateOne({ user_id: ctx.message?.from.id }, {
+        in_settings_mode: true,
+        settings_message_id: sentMessage.message_id
+      });
     })
   );
 
@@ -328,14 +351,29 @@ export default function handlers(bot: Telegraf<Context>) {
     asyncWrapper(async (ctx: Context) => {
       const lang = getUserLanguage(ctx);
       const { mainKeyboard } = getMainKeyboard(lang);
+      const userId = ctx.message?.from.id;
 
-      // Resume signals when returning to main menu
-      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: false });
+      // Get user's settings message ID before clearing
+      const user = await User.findOne({ user_id: userId });
+      const settingsMessageId = user?.settings_message_id;
+
+      // Resume signals when returning to main menu and clear settings message ID
+      await User.updateOne({ user_id: userId }, {
+        in_settings_mode: false,
+        $unset: { settings_message_id: 1 }
+      });
 
       // Delete user's button press message
       try {
         await ctx.deleteMessage();
       } catch (e) {}
+
+      // Delete the settings message (screener info)
+      if (settingsMessageId && ctx.chat) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, settingsMessageId);
+        } catch (e) {}
+      }
 
       // Show main menu with main keyboard
       await ctx.replyWithHTML(t("menu.bot_intro", lang), mainKeyboard);
@@ -422,7 +460,10 @@ export default function handlers(bot: Telegraf<Context>) {
     deleteMessageNext,
     asyncWrapper(async (ctx: Context) => {
       // Resume signals when cancelling settings
-      await User.updateOne({ user_id: ctx.message?.from.id }, { in_settings_mode: false });
+      await User.updateOne({ user_id: ctx.message?.from.id }, {
+        in_settings_mode: false,
+        $unset: { settings_message_id: 1 }
+      });
       return await ctx.scene.leave();
     })
   );
