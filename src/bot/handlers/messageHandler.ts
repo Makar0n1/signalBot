@@ -87,6 +87,13 @@ export default function handlers(bot: Telegraf<Context>) {
         await ctx.deleteMessage();
       } catch (e) {}
 
+      // Delete old main menu message if exists
+      if (user.main_menu_message_id && ctx.chat) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, user.main_menu_message_id);
+        } catch (e) {}
+      }
+
       const { oiKeyboard } = getOIKeyboard(lang);
       const oiText = getMainOIText(user.config, lang);
       const sentMessage = await ctx.replyWithHTML(oiText, oiKeyboard);
@@ -94,7 +101,8 @@ export default function handlers(bot: Telegraf<Context>) {
       // Pause signals while in settings and save settings message ID
       await User.updateOne({ user_id: ctx.message?.from.id }, {
         in_settings_mode: true,
-        settings_message_id: sentMessage.message_id
+        settings_message_id: sentMessage.message_id,
+        $unset: { main_menu_message_id: 1 }
       });
     })
   );
@@ -130,6 +138,13 @@ export default function handlers(bot: Telegraf<Context>) {
         await ctx.deleteMessage();
       } catch (e) {}
 
+      // Delete old main menu message if exists
+      if (user.main_menu_message_id && ctx.chat) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, user.main_menu_message_id);
+        } catch (e) {}
+      }
+
       const { pumpKeyboard } = getPUMPKeyboard(lang);
       const pumpText = getMainPumpText(user.config, lang);
       const sentMessage = await ctx.replyWithHTML(pumpText, pumpKeyboard);
@@ -137,7 +152,8 @@ export default function handlers(bot: Telegraf<Context>) {
       // Pause signals while in settings and save settings message ID
       await User.updateOne({ user_id: ctx.message?.from.id }, {
         in_settings_mode: true,
-        settings_message_id: sentMessage.message_id
+        settings_message_id: sentMessage.message_id,
+        $unset: { main_menu_message_id: 1 }
       });
     })
   );
@@ -172,6 +188,13 @@ export default function handlers(bot: Telegraf<Context>) {
         await ctx.deleteMessage();
       } catch (e) {}
 
+      // Delete old main menu message if exists
+      if (user.main_menu_message_id && ctx.chat) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, user.main_menu_message_id);
+        } catch (e) {}
+      }
+
       const { rektKeyboard } = getREKTKeyboard(lang);
       const rektText = getMainREKTText(user.config, lang);
       const sentMessage = await ctx.replyWithHTML(rektText, rektKeyboard);
@@ -179,7 +202,8 @@ export default function handlers(bot: Telegraf<Context>) {
       // Pause signals while in settings and save settings message ID
       await User.updateOne({ user_id: ctx.message?.from.id }, {
         in_settings_mode: true,
-        settings_message_id: sentMessage.message_id
+        settings_message_id: sentMessage.message_id,
+        $unset: { main_menu_message_id: 1 }
       });
     })
   );

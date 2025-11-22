@@ -166,8 +166,18 @@ export default function handlers(bot: Telegraf<Context>) {
           await ctx.deleteMessage();
         } catch (e) {}
 
+        // Delete old main menu message if exists
+        if (user?.main_menu_message_id && ctx.chat) {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat.id, user.main_menu_message_id);
+          } catch (e) {}
+        }
+
         const { mainKeyboard } = getMainKeyboard("en");
-        await ctx.replyWithHTML(t("menu.bot_intro", "en"), mainKeyboard);
+        const sentMessage = await ctx.replyWithHTML(t("menu.bot_intro", "en"), mainKeyboard);
+
+        // Save new main menu message ID
+        await User.updateOne({ user_id: userId }, { main_menu_message_id: sentMessage.message_id });
       } else {
         // User without access - just delete inline message
         try {
@@ -202,8 +212,18 @@ export default function handlers(bot: Telegraf<Context>) {
           await ctx.deleteMessage();
         } catch (e) {}
 
+        // Delete old main menu message if exists
+        if (user?.main_menu_message_id && ctx.chat) {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat.id, user.main_menu_message_id);
+          } catch (e) {}
+        }
+
         const { mainKeyboard } = getMainKeyboard("ru");
-        await ctx.replyWithHTML(t("menu.bot_intro", "ru"), mainKeyboard);
+        const sentMessage = await ctx.replyWithHTML(t("menu.bot_intro", "ru"), mainKeyboard);
+
+        // Save new main menu message ID
+        await User.updateOne({ user_id: userId }, { main_menu_message_id: sentMessage.message_id });
       } else {
         // User without access - just delete inline message
         try {
